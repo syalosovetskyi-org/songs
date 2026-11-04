@@ -1,0 +1,92 @@
+{
+  "artists": {
+    "Океан Ельзи": [
+      "https://pisni.org.ua/songs/1.html",
+      "https://pisni.org.ua/songs/2.html"
+    ],
+    "Бумбокс": [
+      "https://pisni.org.ua/songs/3.html"
+    ],
+    "Антитіла": [
+      "https://pisni.org.ua/songs/4.html"
+    ],
+    "Іво Бобул": [
+      "https://pisni.org.ua/songs/5.html"
+    ],
+    "Їжак": [
+      "https://pisni.org.ua/songs/6.html"
+    ],
+    "Ґринджоли": [
+      "https://pisni.org.ua/songs/7.html"
+    ],
+    "Гайдамаки": [
+      "https://pisni.org.ua/songs/8.html"
+    ],
+    "Євген": [
+      "https://pisni.org.ua/songs/9.html"
+    ],
+    "Еней": [
+      "https://pisni.org.ua/songs/10.html"
+    ],
+    "Артист Без Пісень": [],
+    "Артист З Невідомими URL": [
+      "https://pisni.org.ua/songs/missing.html"
+    ],
+    "Артист З Битими Піснями": [
+      "https://pisni.org.ua/songs/broken1.html",
+      "https://pisni.org.ua/songs/broken2.html",
+      "https://pisni.org.ua/songs/valid_broken_mix.html"
+    ]
+  },
+  "songs": {
+    "https://pisni.org.ua/songs/1.html": {
+      "name": "Без бою",
+      "text": "Я не здамся без бою..."
+    },
+    "https://pisni.org.ua/songs/2.html": {
+      "name": "В'юн над водою",
+      "text": "В'юн над водою, в’юн над водою..."
+    },
+    "https://pisni.org.ua/songs/3.html": {
+      "name": "Вахтерам",
+      "text": "Тебе так любив я..."
+    },
+    "https://pisni.org.ua/songs/4.html": {
+      "name": "Там, де ми є",
+      "text": "Там де ми є, там де ми є..."
+    },
+    "https://pisni.org.ua/songs/5.html": {
+      "name": "А липи цвітуть",
+      "text": "А липи цвітуть..."
+    },
+    "https://pisni.org.ua/songs/6.html": {
+      "name": "Лісова пісня",
+      "text": "Їхав їжачок..."
+    },
+    "https://pisni.org.ua/songs/7.html": {
+      "name": "Разом нас багато",
+      "text": "Разом нас багато, нас не подолати!"
+    },
+    "https://pisni.org.ua/songs/8.html": {
+      "name": "Два кольори",
+      "text": "Червоне — то любов, а чорне — то журба."
+    },
+    "https://pisni.org.ua/songs/9.html": {
+      "name": "Пісня про волю",
+      "text": "Воля наша світла..."
+    },
+    "https://pisni.org.ua/songs/10.html": {
+      "name": "Козацька слава",
+      "text": "Гей там на горі..."
+    },
+    "https://pisni.org.ua/songs/broken1.html": {
+      "name": null,
+      "text": "Текст без назви"
+    },
+    "https://pisni.org.ua/songs/broken2.html": "invalid structure not map",
+    "https://pisni.org.ua/songs/valid_broken_mix.html": {
+      "name": "Вціліла пісня",
+      "text": "Ця пісня має валідні поля!"
+    }
+  }
+}
