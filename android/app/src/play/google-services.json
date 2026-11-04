@@ -1,0 +1,105 @@
+{
+  "project_info": {
+    "project_number": "372849411579",
+    "project_id": "serg-play-apps",
+    "storage_bucket": "serg-play-apps.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:372849411579:android:56d5e2a50ceebd0ac6375e",
+        "android_client_info": {
+          "package_name": "com.mapscreator.play"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJY_iRRuVQmkSx7G9_NKeuTM4ZFts8cgg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:372849411579:android:23976100bd5161fac6375e",
+        "android_client_info": {
+          "package_name": "com.serg.mafia"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJY_iRRuVQmkSx7G9_NKeuTM4ZFts8cgg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:372849411579:android:b03c9206ac85b867c6375e",
+        "android_client_info": {
+          "package_name": "org.syalosovetskyi.onemoney"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJY_iRRuVQmkSx7G9_NKeuTM4ZFts8cgg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:372849411579:android:d79bed87dc9627c8c6375e",
+        "android_client_info": {
+          "package_name": "ua.syalosovetskyi.dronefight"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJY_iRRuVQmkSx7G9_NKeuTM4ZFts8cgg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:372849411579:android:7b2909755a3e3c21c6375e",
+        "android_client_info": {
+          "package_name": "ua.syalosovetskyi.songs"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJY_iRRuVQmkSx7G9_NKeuTM4ZFts8cgg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
