@@ -15,13 +15,29 @@
  * along with Flutter Song Lyrics App.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'crash_reporter.dart';
 import 'songbook.dart';
 
 export 'songbook.dart' show Song, Artist, SongbookLoader;
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  const flavor = String.fromEnvironment('FLAVOR', defaultValue: 'personal');
+  if (flavor == 'play') {
+    final reporter = CrashReporter.instance;
+    await reporter.initialize();
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    PlatformDispatcher.instance.onError = (error, stack) {
+      reporter.recordError(error, stack, fatal: true);
+      return true;
+    };
+  }
+
   runApp(const MyApp());
 }
 
