@@ -137,6 +137,26 @@ void main() {
     expect(find.text('Порожня пісня'), findsOneWidget);
   });
 
+  testWidgets('SongPage displays SelectableText for regular song lyrics', (WidgetTester tester) async {
+    const song = Song(
+      name: 'Без бою',
+      text: 'Я не здамся без бою...',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark().copyWith(
+          splashFactory: InkRipple.splashFactory,
+        ),
+        home: const SongPage(song: song),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final selectableText = tester.widget<SelectableText>(find.byType(SelectableText));
+    expect(selectableText.data, 'Я не здамся без бою...');
+    expect(selectableText.style?.fontFamily, isNot('monospace'));
+  });
+
   testWidgets('SongPage displays monospace font for song with chords', (WidgetTester tester) async {
     const chordSong = Song(
       name: 'Пісня з акордами',
