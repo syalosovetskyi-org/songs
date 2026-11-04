@@ -104,7 +104,7 @@ class _ArtistListPageState extends State<ArtistListPage> {
           if (_searchQuery.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.clear),
-              tooltip: 'Очистити пошук',
+              tooltip: 'Очистити',
               onPressed: _clearSearch,
             ),
           IconButton(
@@ -137,7 +137,7 @@ class _ArtistListPageState extends State<ArtistListPage> {
                     ElevatedButton.icon(
                       onPressed: _reloadArtists,
                       icon: const Icon(Icons.refresh),
-                      label: const Text('Спробувати знову'),
+                      label: const Text('Повторити'),
                     ),
                   ],
                 ),
@@ -213,6 +213,7 @@ class _ArtistListPageState extends State<ArtistListPage> {
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
+                        tooltip: 'Очистити',
                         onPressed: () {
                           _clearSearch();
                         },
@@ -276,17 +277,27 @@ class _SongListPageState extends State<SongListPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Пісні ${widget.artist.name}'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(widget.artist.name),
+            Text(
+              '${widget.artist.songs.length} пісень',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
         actions: [
           if (_searchQuery.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.clear),
-              tooltip: 'Очистити пошук',
+              tooltip: 'Очистити',
               onPressed: _clearSearch,
             ),
           IconButton(
             icon: const Icon(Icons.search),
-            tooltip: 'Пошук пісень',
+            tooltip: 'Пошук',
             onPressed: () => _showSearchModal(context),
           ),
         ],
@@ -340,6 +351,7 @@ class _SongListPageState extends State<SongListPage> {
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
+                        tooltip: 'Очистити',
                         onPressed: _clearSearch,
                       )
                     : null,

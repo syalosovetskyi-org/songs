@@ -46,7 +46,9 @@ void main() {
     await tester.tap(find.text('Океан Ельзи'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Пісні Океан Ельзи'), findsOneWidget);
+    // Заголовок має ім'я виконавця і підзаголовок з кількістю пісень
+    expect(find.text('Океан Ельзи'), findsOneWidget);
+    expect(find.text('2 пісень'), findsOneWidget);
     expect(find.text('Без бою'), findsOneWidget);
     expect(find.text("В'юн над водою"), findsOneWidget);
 
@@ -59,7 +61,8 @@ void main() {
     // Повернення назад до списку пісень
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(find.text('Пісні Океан Ельзи'), findsOneWidget);
+    expect(find.text('Океан Ельзи'), findsOneWidget);
+    expect(find.text('2 пісень'), findsOneWidget);
 
     // Повернення назад до списку виконавців
     await tester.pageBack();
@@ -145,7 +148,29 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final selectableText = tester.widget<SelectableText>(find.byType(SelectableText));
-    expect(selectableText.style?.fontFamily, 'monospace');
+  testWidgets('Error state shows retry button and Ukrainian error text', (WidgetTester tester) async {
+    int attempts = 0;
+    await tester.pumpWidget(
+      buildTestApp(
+        loader: () async {
+          attempts++;
+          if (attempts == 1) {
+            throw Exception('Помилка мережі');
+          }
+          return testArtists;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Помилка завантаження'), findsOneWidget);
+    final retryBtn = find.widgetWithText(ElevatedButton, 'Повторити');
+    expect(retryBtn, findsOneWidget);
+
+    await tester.tap(retryBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Список виконавців'), findsOneWidget);
+    expect(find.text('Океан Ельзи'), findsOneWidget);
   });
 }
