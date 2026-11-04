@@ -46,30 +46,33 @@ void main() {
   });
 
   group('Search normalization tests', () {
-    test('Normalizes case, whitespace and diverse apostrophe characters', () {
+    test('Normalizes case, whitespace, latin i and diverse apostrophe characters', () {
       expect(normalizeSearchText("  М'ЯТА  "), equals("м'ята"));
       expect(normalizeSearchText('п’ять'), equals("п'ять")); // U+2019
       expect(normalizeSearchText('сімʼя'), equals("сім'я")); // U+02BC
       expect(normalizeSearchText('з`явитися'), equals("з'явитися")); // U+0060
+      expect(normalizeSearchText('ivan'), equals('іvan')); // латинська i -> кирилична і
+      expect(normalizeSearchText('Iво Бобул'), equals('іво бобул'));
     });
 
-    test('matchesSearch matches regardless of apostrophe style and casing', () {
+    test('matchesSearch matches regardless of apostrophe style, casing and latin i', () {
       const target = "В'юн над водою";
       expect(matchesSearch(target, "в'юн"), isTrue);
       expect(matchesSearch(target, 'в’юн'), isTrue); // типографський апостроф
       expect(matchesSearch(target, 'вʼюн'), isTrue); // український модифікатор
       expect(matchesSearch(target, '  ВОДОЮ  '), isTrue);
       expect(matchesSearch(target, 'немає'), isFalse);
+      expect(matchesSearch('Іво Бобул', 'ivo'), isTrue); // пошук латинською 'i'
     });
 
-    test('filterArtists filters by artist name and song name', () {
+    test('filterArtists filters by artist name, song name and song text', () {
       final artists = [
         const Artist(name: 'Океан Ельзи', songs: [
-          Song(name: 'Без бою', text: '...'),
-          Song(name: "В'юн над водою", text: '...'),
+          Song(name: 'Без бою', text: 'Я не здамся без бою...'),
+          Song(name: "В'юн над водою", text: 'В’юн над водою стелиться...'),
         ]),
         const Artist(name: 'Бумбокс', songs: [
-          Song(name: 'Вахтерам', text: '...'),
+          Song(name: 'Вахтерам', text: 'Тебе так любив я...'),
         ]),
       ];
 
@@ -79,21 +82,28 @@ void main() {
       // Пошук за назвою пісні
       expect(filterArtists(artists, 'вахтерам').map((a) => a.name), ['Бумбокс']);
 
-      // Пошук з апострофом у назві пісні
+      // Пошук за фрагментом тексту пісні
+      expect(filterArtists(artists, 'не здамся').map((a) => a.name), ['Океан Ельзи']);
+
+      // Пошук з апострофом у назві або тексті пісні
       expect(filterArtists(artists, 'вʼюн').map((a) => a.name), ['Океан Ельзи']);
+
+      // Пошук латинською 'i'
+      expect(filterArtists(artists, 'iльзи').map((a) => a.name), ['Океан Ельзи']);
 
       // Порожній запит повертає всіх
       expect(filterArtists(artists, '   ').length, 2);
     });
 
-    test('filterSongs filters songs by name with apostrophe support', () {
+    test('filterSongs filters songs by name and text with apostrophe and latin i support', () {
       const songs = [
-        Song(name: "В'юн над водою", text: '...'),
-        Song(name: 'Без бою', text: '...'),
+        Song(name: "В'юн над водою", text: 'Стелиться туман...'),
+        Song(name: 'Без бою', text: 'Я не здамся без бою...'),
       ];
 
       expect(filterSongs(songs, 'в’юн').map((s) => s.name), ["В'юн над водою"]);
       expect(filterSongs(songs, 'бою').map((s) => s.name), ['Без бою']);
+      expect(filterSongs(songs, 'туман').map((s) => s.name), ["В'юн над водою"]); // пошук за текстом
       expect(filterSongs(songs, '').length, 2);
     });
   });

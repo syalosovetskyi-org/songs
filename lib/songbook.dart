@@ -189,11 +189,12 @@ int compareUkrainian(String a, String b) {
   return normA.compareTo(normB);
 }
 
-/// Нормалізація рядка для нечутливого до апострофів і регістру пошуку.
+/// Нормалізація рядка для нечутливого до апострофів, латинської 'i' та регістру пошуку.
 String normalizeSearchText(String text) {
   if (text.isEmpty) return '';
   return text
       .toLowerCase()
+      .replaceAll('i', 'і') // нормалізація латинської 'i' до кириличної 'і'
       .replaceAll(RegExp(r"[’ʼʻ`´']"), "'")
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
@@ -207,7 +208,7 @@ bool matchesSearch(String target, String query) {
   return normalizedTarget.contains(normalizedQuery);
 }
 
-/// Фільтрація виконавців за пошуковим запитом (за назвою артиста або назвами його пісень).
+/// Фільтрація виконавців за пошуковим запитом (за назвою артиста, назвами його пісень або рядками тексту пісень).
 List<Artist> filterArtists(List<Artist> artists, String query) {
   final normalizedQuery = normalizeSearchText(query);
   if (normalizedQuery.isEmpty) return artists;
@@ -216,16 +217,20 @@ List<Artist> filterArtists(List<Artist> artists, String query) {
     if (matchesSearch(artist.name, normalizedQuery)) {
       return true;
     }
-    return artist.songs.any((song) => matchesSearch(song.name, normalizedQuery));
+    return artist.songs.any((song) =>
+        matchesSearch(song.name, normalizedQuery) ||
+        matchesSearch(song.text, normalizedQuery));
   }).toList();
 }
 
-/// Фільтрація пісень виконавця за пошуковим запитом.
+/// Фільтрація пісень виконавця за пошуковим запитом (за назвою пісні або текстом).
 List<Song> filterSongs(List<Song> songs, String query) {
   final normalizedQuery = normalizeSearchText(query);
   if (normalizedQuery.isEmpty) return songs;
 
-  return songs.where((song) => matchesSearch(song.name, normalizedQuery)).toList();
+  return songs.where((song) =>
+      matchesSearch(song.name, normalizedQuery) ||
+      matchesSearch(song.text, normalizedQuery)).toList();
 }
 
 /// Парсинг структури даних пісенника з валідацією, сортуванням та відсіюванням битих записів.
