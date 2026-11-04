@@ -29,17 +29,26 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const seedColor = Color(0xFF2BA0DA);
+
     return MaterialApp(
-      title: 'Список виконавців',
-      theme: ThemeData.dark().copyWith(
-        primaryColor: const Color(0xFF2BA0DA),
-        scaffoldBackgroundColor: Colors.black,
-        splashFactory: InkRipple.splashFactory,
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(
-            color: Colors.white,
-          ),
+      title: 'Співаник',
+      themeMode: ThemeMode.system,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seedColor,
+          brightness: Brightness.light,
         ),
+        splashFactory: InkRipple.splashFactory,
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seedColor,
+          brightness: Brightness.dark,
+        ),
+        splashFactory: InkRipple.splashFactory,
       ),
       home: const ArtistListPage(title: 'Список виконавців'),
     );
@@ -98,7 +107,6 @@ class _ArtistListPageState extends State<ArtistListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Text(widget.title),
         actions: [
           if (_searchQuery.isNotEmpty)

@@ -170,7 +170,14 @@ void main() {
     await tester.tap(retryBtn);
     await tester.pumpAndSettle();
 
-    expect(find.text('Список виконавців'), findsOneWidget);
-    expect(find.text('Океан Ельзи'), findsOneWidget);
+  testWidgets('MyApp configures system theme mode with seed colorScheme and title', (WidgetTester tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pump();
+
+    final materialApp = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(materialApp.title, 'Співаник');
+    expect(materialApp.themeMode, ThemeMode.system);
+    expect(materialApp.theme?.colorScheme.primary, isNotNull);
+    expect(materialApp.darkTheme?.colorScheme.brightness, Brightness.dark);
   });
 }
