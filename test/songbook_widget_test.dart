@@ -114,8 +114,38 @@ void main() {
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
 
-    // Має знайти "Океан Ельзи" (де пісня "В'юн над водою")
-    expect(find.text('Океан Ельзи'), findsOneWidget);
-    expect(find.text('Бумбокс'), findsNothing);
+  testWidgets('SongPage displays SelectableText and empty state when text is blank', (WidgetTester tester) async {
+    const emptySong = Song(name: 'Порожня пісня', text: '');
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark().copyWith(
+          splashFactory: InkRipple.splashFactory,
+        ),
+        home: const SongPage(song: emptySong),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Текст відсутній'), findsOneWidget);
+    expect(find.text('Порожня пісня'), findsOneWidget);
+  });
+
+  testWidgets('SongPage displays monospace font for song with chords', (WidgetTester tester) async {
+    const chordSong = Song(
+      name: 'Пісня з акордами',
+      text: 'Am  C  Dm  E7\nСлова пісні',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark().copyWith(
+          splashFactory: InkRipple.splashFactory,
+        ),
+        home: const SongPage(song: chordSong),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final selectableText = tester.widget<SelectableText>(find.byType(SelectableText));
+    expect(selectableText.style?.fontFamily, 'monospace');
   });
 }

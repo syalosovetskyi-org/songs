@@ -3,7 +3,38 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:song_lyrics/songbook.dart';
 
 void main() {
-  group('Ukrainian collation & sorting tests', () {
+  group('Chord detection tests', () {
+    test('isChordLine correctly detects lines with chords', () {
+      expect(isChordLine('Am  C  Dm  E7'), isTrue);
+      expect(isChordLine('G   D/F#   Em'), isTrue);
+      expect(isChordLine('| Am | C | Dm | E |'), isTrue);
+      expect(isChordLine('[H7] [F#m] [Bb]'), isTrue);
+      expect(isChordLine('Csus4 Aaug Bbdim'), isTrue);
+
+      expect(isChordLine(''), isFalse);
+      expect(isChordLine('   '), isFalse);
+      expect(isChordLine('Я не здамся без бою'), isFalse);
+      expect(isChordLine('Am ідемо гуляти'), isFalse);
+    });
+
+    test('hasChords detects whether song lyrics have chord lines', () {
+      const songWithChords = '''
+Am          Dm
+Я не здамся без бою
+E7          Am
+Я не здамся ніколи
+''';
+      expect(hasChords(songWithChords), isTrue);
+
+      const songWithoutChords = '''
+Там, де ми є, там де ми є
+Немає болю і нема печалі
+''';
+      expect(hasChords(songWithoutChords), isFalse);
+      expect(hasChords(''), isFalse);
+    });
+  });
+
     test('Ukrainian alphabet order is respected', () {
       final letters = [
         'Я', 'Ю', 'Ь', 'Щ', 'Ш', 'Ч', 'Ц', 'Х', 'Ф', 'У', 'Т', 'С', 'Р', 'П', 'О',

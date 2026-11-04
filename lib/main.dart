@@ -364,17 +364,51 @@ class SongPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final bool withChords = hasChords(song.text);
+
+    final textStyle = (withChords
+            ? const TextStyle(fontFamily: 'monospace', fontSize: 14.0)
+            : const TextStyle(fontSize: 16.0))
+        .copyWith(color: colorScheme.onSurface);
+
+    Widget content;
+    if (song.text.trim().isEmpty) {
+      content = Center(
+        child: Text(
+          'Текст відсутній',
+          style: textTheme.bodyLarge?.copyWith(
+            color: colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      );
+    } else if (withChords) {
+      content = SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SelectableText(
+            song.text,
+            style: textStyle,
+          ),
+        ),
+      );
+    } else {
+      content = SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: SelectableText(
+          song.text,
+          style: textStyle,
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(song.name),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Text(
-          song.text,
-          style: const TextStyle(fontSize: 16.0),
-        ),
-      ),
+      body: content,
     );
   }
 }

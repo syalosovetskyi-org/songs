@@ -115,8 +115,37 @@ class Artist {
   String toString() => 'Artist(name: $name, songsCount: ${songs.length})';
 }
 
-/// 33 літери українського алфавіту в канонічному порядку.
-const String _ukrainianAlphabet = 'абвгґдеєжзиіїйклмнопрстуфхцчшщьюя';
+/// Регулярний вираз для перевірки окремого акорду.
+final RegExp _chordRegex = RegExp(r'^[A-H](#|b)?(m|maj|min|dim|aug|sus)?\d*(/[A-H](#|b)?)?$');
+
+/// Перевіряє, чи складається рядок виключно з акордів та роздільників.
+bool isChordLine(String line) {
+  final trimmed = line.trim();
+  if (trimmed.isEmpty) return false;
+
+  final tokens = trimmed.split(RegExp(r'\s+'));
+  int chordCount = 0;
+
+  for (final rawToken in tokens) {
+    final token = rawToken.replaceAll(RegExp(r'[\[\]():|]'), '');
+    if (token.isEmpty) continue;
+
+    if (_chordRegex.hasMatch(token)) {
+      chordCount++;
+    } else {
+      return false;
+    }
+  }
+
+  return chordCount > 0;
+}
+
+/// Перевіряє, чи містить текст пісні хоча б один рядок з акордами.
+bool hasChords(String text) {
+  if (text.isEmpty) return false;
+  return text.split('\n').any(isChordLine);
+}
+
 
 final Map<int, int> _ukrainianLetterRanks = () {
   final map = <int, int>{};
