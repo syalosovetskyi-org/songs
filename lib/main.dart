@@ -16,6 +16,7 @@
  */
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'songbook.dart';
 
 export 'songbook.dart' show Song, Artist, SongbookLoader;
@@ -34,6 +35,15 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Співаник',
       themeMode: ThemeMode.system,
+      locale: const Locale('uk'),
+      supportedLocales: const [
+        Locale('uk'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(

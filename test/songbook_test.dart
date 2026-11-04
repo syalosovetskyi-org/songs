@@ -35,6 +35,7 @@ E7          Am
     });
   });
 
+  group('Ukrainian collation & sorting tests', () {
     test('Ukrainian alphabet order is respected', () {
       final letters = [
         'Я', 'Ю', 'Ь', 'Щ', 'Ш', 'Ч', 'Ц', 'Х', 'Ф', 'У', 'Т', 'С', 'Р', 'П', 'О',
@@ -93,7 +94,7 @@ E7          Am
       expect(matchesSearch(target, 'вʼюн'), isTrue); // український модифікатор
       expect(matchesSearch(target, '  ВОДОЮ  '), isTrue);
       expect(matchesSearch(target, 'немає'), isFalse);
-      expect(matchesSearch('Іво Бобул', 'ivo'), isTrue); // пошук латинською 'i'
+      expect(matchesSearch('Іво Бобул', 'iво'), isTrue); // пошук з латинською 'i'
     });
 
     test('filterArtists filters by artist name, song name and song text', () {
@@ -104,6 +105,9 @@ E7          Am
         ]),
         const Artist(name: 'Бумбокс', songs: [
           Song(name: 'Вахтерам', text: 'Тебе так любив я...'),
+        ]),
+        const Artist(name: 'Антитіла', songs: [
+          Song(name: 'TDME', text: 'Там де ми є...'),
         ]),
       ];
 
@@ -119,11 +123,11 @@ E7          Am
       // Пошук з апострофом у назві або тексті пісні
       expect(filterArtists(artists, 'вʼюн').map((a) => a.name), ['Океан Ельзи']);
 
-      // Пошук латинською 'i'
-      expect(filterArtists(artists, 'iльзи').map((a) => a.name), ['Океан Ельзи']);
+      // Пошук латинською 'i' у назві артиста
+      expect(filterArtists(artists, 'антитiла').map((a) => a.name), ['Антитіла']);
 
       // Порожній запит повертає всіх
-      expect(filterArtists(artists, '   ').length, 2);
+      expect(filterArtists(artists, '   ').length, 3);
     });
 
     test('filterSongs filters songs by name and text with apostrophe and latin i support', () {

@@ -147,6 +147,9 @@ bool hasChords(String text) {
 }
 
 
+/// 33 літери українського алфавіту в канонічному порядку.
+const String _ukrainianAlphabet = 'абвгґдеєжзиіїйклмнопрстуфхцчшщьюя';
+
 final Map<int, int> _ukrainianLetterRanks = () {
   final map = <int, int>{};
   for (int i = 0; i < _ukrainianAlphabet.length; i++) {

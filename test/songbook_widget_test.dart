@@ -117,6 +117,10 @@ void main() {
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
 
+    expect(find.text('Океан Ельзи'), findsOneWidget);
+    expect(find.text('Бумбокс'), findsNothing);
+  });
+
   testWidgets('SongPage displays SelectableText and empty state when text is blank', (WidgetTester tester) async {
     const emptySong = Song(name: 'Порожня пісня', text: '');
     await tester.pumpWidget(
@@ -148,6 +152,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final selectableText = tester.widget<SelectableText>(find.byType(SelectableText));
+    expect(selectableText.style?.fontFamily, 'monospace');
+  });
+
   testWidgets('Error state shows retry button and Ukrainian error text', (WidgetTester tester) async {
     int attempts = 0;
     await tester.pumpWidget(
@@ -170,13 +178,19 @@ void main() {
     await tester.tap(retryBtn);
     await tester.pumpAndSettle();
 
-  testWidgets('MyApp configures system theme mode with seed colorScheme and title', (WidgetTester tester) async {
+    expect(find.text('Список виконавців'), findsOneWidget);
+    expect(find.text('Океан Ельзи'), findsOneWidget);
+  });
+
+  testWidgets('MyApp configures system theme mode, title and Ukrainian localization', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
     await tester.pump();
 
     final materialApp = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(materialApp.title, 'Співаник');
     expect(materialApp.themeMode, ThemeMode.system);
+    expect(materialApp.supportedLocales, contains(const Locale('uk')));
+    expect(materialApp.locale, const Locale('uk'));
     expect(materialApp.theme?.colorScheme.primary, isNotNull);
     expect(materialApp.darkTheme?.colorScheme.brightness, Brightness.dark);
   });
