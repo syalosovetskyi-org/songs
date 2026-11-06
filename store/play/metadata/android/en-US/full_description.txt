@@ -1,0 +1,15 @@
+Spivanik is a comprehensive offline songbook designed for lovers of Ukrainian music, guitar players, and singers.
+
+Browse a rich catalog of songs spanning traditional folk melodies, classic hits, and modern rock and pop. The app works entirely offline: access lyrics and guitar chords anytime and anywhere without needing an internet connection.
+
+Key Features:
+• Rich Catalog: More than 3,000 artists and over 29,000 songs.
+• 100% Offline: The entire database is stored on your device, making it perfect for road trips, camping, and jam sessions.
+• Guitar Chords: Clean monospace chord alignment above lyrics, with smooth horizontal scrolling for wide chord progressions.
+• Instant Smart Search: Fast search across artist names, song titles, and lyric lines simultaneously.
+• Ukrainian Language Support: Intelligent search normalization seamlessly handles various apostrophe styles (’ ʼ ' `) and character variations.
+• Comfortable Reading: Modern Material 3 interface with dark theme support to reduce eye strain.
+• Selectable Text: Easily select and copy lyrics whenever needed.
+• Lightweight & Fast: High-performance list rendering and instant navigation.
+
+Enjoy singing your favourite Ukrainian songs with Spivanik!
