@@ -48,7 +48,7 @@ void main() {
 
     // Заголовок має ім'я виконавця і підзаголовок з кількістю пісень
     expect(find.text('Океан Ельзи'), findsOneWidget);
-    expect(find.text('2 пісень'), findsOneWidget);
+    expect(find.text('2 пісні'), findsOneWidget);
     expect(find.text('Без бою'), findsOneWidget);
     expect(find.text("В'юн над водою"), findsOneWidget);
 
@@ -62,7 +62,7 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('Океан Ельзи'), findsOneWidget);
-    expect(find.text('2 пісень'), findsOneWidget);
+    expect(find.text('2 пісні'), findsOneWidget);
 
     // Повернення назад до списку виконавців
     await tester.pageBack();
@@ -191,7 +191,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Помилка завантаження'), findsOneWidget);
+    expect(find.textContaining('Не вдалося прочитати базу пісень'), findsOneWidget);
     final retryBtn = find.widgetWithText(ElevatedButton, 'Повторити');
     expect(retryBtn, findsOneWidget);
 

@@ -146,6 +146,21 @@ bool hasChords(String text) {
   return text.split('\n').any(isChordLine);
 }
 
+/// Повертає відмінювану форму кількості пісень українською мовою:
+/// "1 пісня", "2 пісні", "5 пісень".
+String formatSongsCount(int count) {
+  final absCount = count.abs();
+  final mod10 = absCount % 10;
+  final mod100 = absCount % 100;
+  if (mod10 == 1 && mod100 != 11) {
+    return '$count пісня';
+  } else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+    return '$count пісні';
+  } else {
+    return '$count пісень';
+  }
+}
+
 
 /// 33 літери українського алфавіту в канонічному порядку.
 const String _ukrainianAlphabet = 'абвгґдеєжзиіїйклмнопрстуфхцчшщьюя';

@@ -22,7 +22,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'crash_reporter.dart';
 import 'songbook.dart';
 
-export 'songbook.dart' show Song, Artist, SongbookLoader;
+export 'songbook.dart' show Song, Artist, SongbookLoader, formatSongsCount;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -100,6 +100,7 @@ class _ArtistListPageState extends State<ArtistListPage> {
   late final TextEditingController _searchController;
   List<Artist> _allArtists = const [];
   String _searchQuery = '';
+  bool _isSearching = false;
 
   @override
   void initState() {
@@ -131,41 +132,92 @@ class _ArtistListPageState extends State<ArtistListPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        actions: [
-          if (_searchQuery.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear),
-              tooltip: 'Очистити',
-              onPressed: _clearSearch,
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final PreferredSizeWidget appBar = _isSearching
+        ? AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'Назад',
+              onPressed: () {
+                setState(() {
+                  _isSearching = false;
+                });
+              },
             ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            tooltip: 'Пошук',
-            onPressed: () => _showSearchModal(context),
-          ),
-        ],
-      ),
+            title: TextField(
+              controller: _searchController,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Пошук виконавців та пісень',
+                border: InputBorder.none,
+                suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _searchController,
+                  builder: (context, value, _) {
+                    if (value.text.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return IconButton(
+                      icon: const Icon(Icons.clear),
+                      tooltip: 'Очистити',
+                      onPressed: _clearSearch,
+                    );
+                  },
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+            ),
+          )
+        : AppBar(
+            title: Text(widget.title),
+            actions: [
+              if (_searchQuery.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.clear),
+                  tooltip: 'Очистити',
+                  onPressed: _clearSearch,
+                ),
+              IconButton(
+                icon: const Icon(Icons.search),
+                tooltip: 'Пошук',
+                onPressed: () {
+                  setState(() {
+                    _isSearching = true;
+                  });
+                },
+              ),
+            ],
+          );
+
+    return Scaffold(
+      appBar: appBar,
       body: FutureBuilder<List<Artist>>(
         future: _artistsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
+            CrashReporter.instance.recordError(
+              snapshot.error!,
+              snapshot.stackTrace,
+              reason: 'Помилка завантаження бази пісень',
+            );
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                    Icon(Icons.error_outline, color: colorScheme.error, size: 48),
                     const SizedBox(height: 16),
                     Text(
-                      'Помилка завантаження: ${snapshot.error}',
+                      'Не вдалося прочитати базу пісень. Перевстановіть застосунок',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.redAccent),
+                      style: TextStyle(color: colorScheme.error),
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
@@ -184,85 +236,72 @@ class _ArtistListPageState extends State<ArtistListPage> {
           _allArtists = snapshot.data!;
           final filteredArtists = filterArtists(_allArtists, _searchQuery);
 
+          final searchFilterChip = _searchQuery.isNotEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Chip(
+                      label: Text('Знайдено ${filteredArtists.length} за «$_searchQuery»'),
+                      onDeleted: _clearSearch,
+                      deleteIcon: const Icon(Icons.close, size: 18),
+                    ),
+                  ),
+                )
+              : null;
+
           if (filteredArtists.isEmpty) {
-            return const Center(child: Text('Нічого не знайдено'));
+            return Column(
+              children: [
+                if (searchFilterChip != null) searchFilterChip,
+                const Expanded(
+                  child: Center(child: Text('Нічого не знайдено')),
+                ),
+              ],
+            );
           }
 
-          return ListView.separated(
-            separatorBuilder: (context, index) => Divider(
-              color: Colors.grey[800],
-            ),
-            itemCount: filteredArtists.length,
-            itemBuilder: (context, index) {
-              final artist = filteredArtists[index];
-              return ListTile(
-                title: Text(artist.name),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                subtitle: Text(
-                  'Пісень: ${artist.songs.length}',
-                  style: const TextStyle(
-                    color: Colors.grey,
-                  ),
-                ),
-                onTap: () {
-                  final initialQuery = _searchQuery.isNotEmpty &&
-                          !matchesSearch(artist.name, _searchQuery)
-                      ? _searchQuery
-                      : '';
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SongListPage(
-                        artist: artist,
-                        initialSearchQuery: initialQuery,
+          return Column(
+            children: [
+              if (searchFilterChip != null) searchFilterChip,
+              Expanded(
+                child: ListView.separated(
+                  separatorBuilder: (context, index) => const Divider(),
+                  itemCount: filteredArtists.length,
+                  itemBuilder: (context, index) {
+                    final artist = filteredArtists[index];
+                    return ListTile(
+                      title: Text(artist.name),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      subtitle: Text(
+                        'Пісень: ${artist.songs.length}',
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  );
-                },
-              );
-            },
+                      onTap: () {
+                        final initialQuery = _searchQuery.isNotEmpty &&
+                                !matchesSearch(artist.name, _searchQuery)
+                            ? _searchQuery
+                            : '';
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SongListPage(
+                              artist: artist,
+                              initialSearchQuery: initialQuery,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
-    );
-  }
-
-  void _showSearchModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (BuildContext modalContext) {
-        return Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(modalContext).viewInsets.bottom,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: 'Пошук виконавців та пісень',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        tooltip: 'Очистити',
-                        onPressed: () {
-                          _clearSearch();
-                        },
-                      )
-                    : null,
-              ),
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-            ),
-          ),
-        );
-      },
     );
   }
 }
@@ -284,6 +323,7 @@ class SongListPage extends StatefulWidget {
 class _SongListPageState extends State<SongListPage> {
   late final TextEditingController _searchController;
   late String _searchQuery;
+  bool _isSearching = false;
 
   @override
   void initState() {
@@ -308,87 +348,56 @@ class _SongListPageState extends State<SongListPage> {
   @override
   Widget build(BuildContext context) {
     final filteredSongs = filterSongs(widget.artist.songs, _searchQuery);
+    final textScaleFactor = MediaQuery.textScalerOf(context).scale(1.0);
+    final toolbarHeight = textScaleFactor > 1.0
+        ? kToolbarHeight * textScaleFactor
+        : kToolbarHeight;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(widget.artist.name),
-            Text(
-              '${widget.artist.songs.length} пісень',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-        actions: [
-          if (_searchQuery.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear),
-              tooltip: 'Очистити',
-              onPressed: _clearSearch,
-            ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            tooltip: 'Пошук',
-            onPressed: () => _showSearchModal(context),
-          ),
-        ],
-      ),
-      body: filteredSongs.isEmpty
-          ? const Center(child: Text('Нічого не знайдено'))
-          : ListView.separated(
-              separatorBuilder: (context, index) => Divider(
-                color: Colors.grey[800],
+    final searchFilterChip = _searchQuery.isNotEmpty
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Chip(
+                label: Text('Знайдено ${filteredSongs.length} за «$_searchQuery»'),
+                onDeleted: _clearSearch,
+                deleteIcon: const Icon(Icons.close, size: 18),
               ),
-              itemCount: filteredSongs.length,
-              itemBuilder: (context, index) {
-                final song = filteredSongs[index];
-                return ListTile(
-                  title: Text(
-                    song.name,
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SongPage(song: song),
-                      ),
-                    );
-                  },
-                );
+            ),
+          )
+        : null;
+
+    final PreferredSizeWidget appBar = _isSearching
+        ? AppBar(
+            toolbarHeight: toolbarHeight,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'Назад',
+              onPressed: () {
+                setState(() {
+                  _isSearching = false;
+                });
               },
             ),
-    );
-  }
-
-  void _showSearchModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (BuildContext modalContext) {
-        return Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(modalContext).viewInsets.bottom,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
+            title: TextField(
               controller: _searchController,
               autofocus: true,
               decoration: InputDecoration(
                 hintText: 'Пошук пісень',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        tooltip: 'Очистити',
-                        onPressed: _clearSearch,
-                      )
-                    : null,
+                border: InputBorder.none,
+                suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _searchController,
+                  builder: (context, value, _) {
+                    if (value.text.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return IconButton(
+                      icon: const Icon(Icons.clear),
+                      tooltip: 'Очистити',
+                      onPressed: _clearSearch,
+                    );
+                  },
+                ),
               ),
               onChanged: (value) {
                 setState(() {
@@ -396,9 +405,85 @@ class _SongListPageState extends State<SongListPage> {
                 });
               },
             ),
-          ),
-        );
-      },
+          )
+        : AppBar(
+            toolbarHeight: toolbarHeight,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.artist.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  formatSongsCount(filteredSongs.length),
+                  style: Theme.of(context).textTheme.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+            actions: [
+              if (_searchQuery.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.clear),
+                  tooltip: 'Очистити',
+                  onPressed: _clearSearch,
+                ),
+              IconButton(
+                icon: const Icon(Icons.search),
+                tooltip: 'Пошук',
+                onPressed: () {
+                  setState(() {
+                    _isSearching = true;
+                  });
+                },
+              ),
+            ],
+          );
+
+    return Scaffold(
+      appBar: appBar,
+      body: filteredSongs.isEmpty
+          ? Column(
+              children: [
+                if (searchFilterChip != null) searchFilterChip,
+                const Expanded(
+                  child: Center(child: Text('Нічого не знайдено')),
+                ),
+              ],
+            )
+          : Column(
+              children: [
+                if (searchFilterChip != null) searchFilterChip,
+                Expanded(
+                  child: ListView.separated(
+                    separatorBuilder: (context, index) => const Divider(),
+                    itemCount: filteredSongs.length,
+                    itemBuilder: (context, index) {
+                      final song = filteredSongs[index];
+                      return ListTile(
+                        title: Text(
+                          song.name,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SongPage(song: song),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
@@ -408,52 +493,153 @@ class SongPage extends StatelessWidget {
 
   const SongPage({super.key, required this.song});
 
+  double _calculateChordFontSize(String text, double availableWidth) {
+    const defaultSize = 14.0;
+    const minSize = 11.0;
+
+    if (availableWidth <= 0) return defaultSize;
+
+    final lines = text.split('\n');
+    if (lines.isEmpty) return defaultSize;
+
+    String longestLine = '';
+    for (final line in lines) {
+      if (line.length > longestLine.length) {
+        longestLine = line;
+      }
+    }
+
+    if (longestLine.isEmpty) return defaultSize;
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: longestLine,
+        style: const TextStyle(fontFamily: 'monospace', fontSize: defaultSize),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+
+    final widthAtDefault = textPainter.width;
+    if (widthAtDefault <= availableWidth) {
+      return defaultSize;
+    }
+
+    double fittedSize = defaultSize * (availableWidth / widthAtDefault);
+    if (fittedSize < minSize) {
+      fittedSize = minSize;
+    }
+    return fittedSize;
+  }
+
+  Widget _buildSongTitle(BuildContext context) {
+    return Text(
+      song.name,
+      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final bool withChords = hasChords(song.text);
 
-    final textStyle = (withChords
-            ? const TextStyle(fontFamily: 'monospace', fontSize: 14.0)
-            : const TextStyle(fontSize: 16.0))
-        .copyWith(color: colorScheme.onSurface);
-
     Widget content;
     if (song.text.trim().isEmpty) {
-      content = Center(
-        child: Text(
-          'Текст відсутній',
-          style: textTheme.bodyLarge?.copyWith(
-            color: colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
+      content = Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSongTitle(context),
+            Expanded(
+              child: Center(
+                child: Text(
+                  'Текст відсутній',
+                  style: textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     } else if (withChords) {
-      content = SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SelectableText(
-            song.text,
-            style: textStyle,
-          ),
-        ),
+      content = LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth - 32.0;
+          final fontSize = _calculateChordFontSize(song.text, availableWidth);
+
+          final lines = song.text.split('\n');
+          final spans = <TextSpan>[];
+          for (int i = 0; i < lines.length; i++) {
+            final line = lines[i];
+            final isChord = isChordLine(line);
+            spans.add(
+              TextSpan(
+                text: i < lines.length - 1 ? '$line\n' : line,
+                style: TextStyle(
+                  color: isChord ? colorScheme.primary : colorScheme.onSurface,
+                ),
+              ),
+            );
+          }
+
+          final textStyle = TextStyle(
+            fontFamily: 'monospace',
+            fontSize: fontSize,
+          );
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSongTitle(context),
+                const SizedBox(height: 16),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SelectableText.rich(
+                    TextSpan(
+                      style: textStyle,
+                      children: spans,
+                    ),
+                    style: textStyle,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       );
     } else {
+      final textStyle = TextStyle(
+        fontSize: 16.0,
+        color: colorScheme.onSurface,
+      );
+
       content = SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
-        child: SelectableText(
-          song.text,
-          style: textStyle,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSongTitle(context),
+            const SizedBox(height: 16),
+            SelectableText(
+              song.text,
+              style: textStyle,
+            ),
+          ],
         ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(song.name),
-      ),
+      appBar: AppBar(),
       body: content,
     );
   }

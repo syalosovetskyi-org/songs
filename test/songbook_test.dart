@@ -230,4 +230,28 @@ E7          Am
       );
     });
   });
+
+  group('Ukrainian pluralization tests', () {
+    test('formatSongsCount correctly handles Ukrainian noun declension', () {
+      expect(formatSongsCount(1), '1 пісня');
+      expect(formatSongsCount(21), '21 пісня');
+      expect(formatSongsCount(101), '101 пісня');
+
+      expect(formatSongsCount(2), '2 пісні');
+      expect(formatSongsCount(3), '3 пісні');
+      expect(formatSongsCount(4), '4 пісні');
+      expect(formatSongsCount(22), '22 пісні');
+      expect(formatSongsCount(104), '104 пісні');
+
+      expect(formatSongsCount(0), '0 пісень');
+      expect(formatSongsCount(5), '5 пісень');
+      expect(formatSongsCount(11), '11 пісень');
+      expect(formatSongsCount(12), '12 пісень');
+      expect(formatSongsCount(14), '14 пісень');
+      expect(formatSongsCount(20), '20 пісень');
+      expect(formatSongsCount(25), '25 пісень');
+      expect(formatSongsCount(100), '100 пісень');
+      expect(formatSongsCount(111), '111 пісень');
+    });
+  });
 }
