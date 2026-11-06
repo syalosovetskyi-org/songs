@@ -115,17 +115,17 @@
 store/play/metadata/android/
 ├── uk/
 │   └── images/
-│       ├── icon.png                      # 512x512
+│       ├── icon.png                      # 512x512 (див. ICON-TODO.md)
 │       ├── featureGraphic.png            # 1024x500
 │       └── phoneScreenshots/             # 1080x2400 (1_catalog.png .. 6_dark.png)
 ├── en-US/
 │   └── images/
-│       ├── icon.png
-│       ├── featureGraphic.png
+│       ├── icon.png                      # 512x512 (see ICON-TODO.md)
+│       ├── featureGraphic.png            # 1024x500
 │       └── phoneScreenshots/
 └── ru-RU/
     └── images/
-        ├── icon.png
-        ├── featureGraphic.png
+        ├── icon.png                      # 512x512 (см. ICON-TODO.md)
+        ├── featureGraphic.png            # 1024x500
         └── phoneScreenshots/
 ```
