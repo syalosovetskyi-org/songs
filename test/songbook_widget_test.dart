@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:song_lyrics/main.dart';
 
 void main() {
-  const testArtists = [
+  final testArtists = [
     Artist(
       name: 'Океан Ельзи',
       songs: [
@@ -121,14 +121,67 @@ void main() {
     expect(find.text('Бумбокс'), findsNothing);
   });
 
+  testWidgets('Debounce and LinearProgressIndicator during search', (WidgetTester tester) async {
+    await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
+
+    // Відкриваємо пошук
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pumpAndSettle();
+
+    // Вводимо текст у TextField
+    final textField = find.byType(TextField);
+    await tester.enterText(textField, 'бум');
+
+    // Перевіряємо стан під час debounce (100 мс після вводу)
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // LinearProgressIndicator відображається під час очікування пошуку
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+    // Дочікуємося завершення debounce та пошуку
+    await tester.pumpAndSettle();
+
+    // Індикатор зникає, відображаються результати
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.text('Бумбокс'), findsOneWidget);
+    expect(find.text('Океан Ельзи'), findsNothing);
+  });
+
+  testWidgets('Search field keeps its state and focus while the progress bar toggles', (WidgetTester tester) async {
+    await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pumpAndSettle();
+
+    final editableBefore = tester.state<EditableTextState>(find.byType(EditableText));
+    expect(editableBefore.widget.focusNode.hasFocus, isTrue);
+
+    // Перша літера вмикає індикатор під AppBar: поле не повинно перебудуватися,
+    // інакше втрачається фокус і наступні літери з клавіатури губляться.
+    await tester.enterText(find.byType(TextField), 'б');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+    final editableDuring = tester.state<EditableTextState>(find.byType(EditableText));
+    expect(identical(editableBefore, editableDuring), isTrue);
+    expect(editableDuring.widget.focusNode.hasFocus, isTrue);
+
+    await tester.pumpAndSettle();
+    final editableAfter = tester.state<EditableTextState>(find.byType(EditableText));
+    expect(identical(editableBefore, editableAfter), isTrue);
+    expect(editableAfter.widget.focusNode.hasFocus, isTrue);
+  });
+
   testWidgets('SongPage displays SelectableText and empty state when text is blank', (WidgetTester tester) async {
-    const emptySong = Song(name: 'Порожня пісня', text: '');
+    final emptySong = Song(name: 'Порожня пісня', text: '');
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData.dark().copyWith(
           splashFactory: InkRipple.splashFactory,
         ),
-        home: const SongPage(song: emptySong),
+        home: SongPage(song: emptySong),
       ),
     );
     await tester.pumpAndSettle();
@@ -138,7 +191,7 @@ void main() {
   });
 
   testWidgets('SongPage displays SelectableText for regular song lyrics', (WidgetTester tester) async {
-    const song = Song(
+    final song = Song(
       name: 'Без бою',
       text: 'Я не здамся без бою...',
     );
@@ -147,7 +200,7 @@ void main() {
         theme: ThemeData.dark().copyWith(
           splashFactory: InkRipple.splashFactory,
         ),
-        home: const SongPage(song: song),
+        home: SongPage(song: song),
       ),
     );
     await tester.pumpAndSettle();
@@ -158,7 +211,7 @@ void main() {
   });
 
   testWidgets('SongPage displays monospace font for song with chords', (WidgetTester tester) async {
-    const chordSong = Song(
+    final chordSong = Song(
       name: 'Пісня з акордами',
       text: 'Am  C  Dm  E7\nСлова пісні',
     );
@@ -167,7 +220,7 @@ void main() {
         theme: ThemeData.dark().copyWith(
           splashFactory: InkRipple.splashFactory,
         ),
-        home: const SongPage(song: chordSong),
+        home: SongPage(song: chordSong),
       ),
     );
     await tester.pumpAndSettle();

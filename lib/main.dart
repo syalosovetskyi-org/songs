@@ -15,6 +15,7 @@
  * along with Flutter Song Lyrics App.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -22,7 +23,16 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'crash_reporter.dart';
 import 'songbook.dart';
 
-export 'songbook.dart' show Song, Artist, SongbookLoader, formatSongsCount;
+export 'songbook.dart'
+    show
+        Song,
+        Artist,
+        SongbookLoader,
+        formatSongsCount,
+        searchArtists,
+        filterArtists,
+        filterSongs,
+        normalizeSearchText;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -99,8 +109,12 @@ class _ArtistListPageState extends State<ArtistListPage> {
   late Future<List<Artist>> _artistsFuture;
   late final TextEditingController _searchController;
   List<Artist> _allArtists = const [];
+  List<Artist>? _filteredArtists;
   String _searchQuery = '';
   bool _isSearching = false;
+  bool _isSearchLoading = false;
+  int _activeSearchId = 0;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -110,23 +124,76 @@ class _ArtistListPageState extends State<ArtistListPage> {
   }
 
   void _reloadArtists() {
+    _debounceTimer?.cancel();
+    final searchId = ++_activeSearchId;
     setState(() {
-      _artistsFuture = widget.loader != null
-          ? widget.loader!()
-          : SongbookLoader.loadArtists();
+      _isSearchLoading = false;
+      _filteredArtists = null;
+      _artistsFuture = (widget.loader != null
+              ? widget.loader!()
+              : SongbookLoader.loadArtists())
+          .then((artists) {
+        _allArtists = artists;
+        if (_searchQuery.trim().isNotEmpty) {
+          _runSearch(_searchQuery, expectedSearchId: searchId);
+        } else {
+          _filteredArtists = artists;
+        }
+        return artists;
+      });
     });
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   void _clearSearch() {
+    _debounceTimer?.cancel();
+    ++_activeSearchId;
     setState(() {
       _searchQuery = '';
       _searchController.clear();
+      _filteredArtists = _allArtists;
+      _isSearchLoading = false;
+    });
+  }
+
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    final searchId = ++_activeSearchId;
+    final trimmed = value.trim();
+
+    if (trimmed.isEmpty) {
+      setState(() {
+        _searchQuery = value;
+        _filteredArtists = _allArtists;
+        _isSearchLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _searchQuery = value;
+      _isSearchLoading = true;
+    });
+
+    _debounceTimer = Timer(const Duration(milliseconds: 250), () {
+      _runSearch(value, expectedSearchId: searchId);
+    });
+  }
+
+  Future<void> _runSearch(String query, {required int expectedSearchId}) async {
+    final results = await searchArtists(_allArtists, query);
+    if (!mounted || expectedSearchId != _activeSearchId) {
+      return;
+    }
+    setState(() {
+      _filteredArtists = results;
+      _isSearchLoading = false;
     });
   }
 
@@ -134,8 +201,22 @@ class _ArtistListPageState extends State<ArtistListPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    // Смуга під AppBar є завжди, перемикається лише її вміст: якщо bottom
+    // змінюється між null і віджетом, AppBar перебудовує дерево, поле пошуку
+    // втрачає фокус і з'єднання з клавіатурою, і наступні літери губляться.
+    final PreferredSizeWidget appBarBottom = PreferredSize(
+      preferredSize: const Size.fromHeight(2.0),
+      child: SizedBox(
+        height: 2.0,
+        child: _isSearchLoading
+            ? const LinearProgressIndicator(minHeight: 2.0)
+            : null,
+      ),
+    );
+
     final PreferredSizeWidget appBar = _isSearching
         ? AppBar(
+            bottom: appBarBottom,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
               tooltip: 'Назад',
@@ -165,15 +246,12 @@ class _ArtistListPageState extends State<ArtistListPage> {
                   },
                 ),
               ),
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
+              onChanged: _onSearchChanged,
             ),
           )
         : AppBar(
             title: Text(widget.title),
+            bottom: appBarBottom,
             actions: [
               if (_searchQuery.isNotEmpty)
                 IconButton(
@@ -234,7 +312,7 @@ class _ArtistListPageState extends State<ArtistListPage> {
           }
 
           _allArtists = snapshot.data!;
-          final filteredArtists = filterArtists(_allArtists, _searchQuery);
+          final filteredArtists = _filteredArtists ?? _allArtists;
 
           final searchFilterChip = _searchQuery.isNotEmpty
               ? Padding(

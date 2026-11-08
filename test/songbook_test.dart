@@ -99,14 +99,14 @@ E7          Am
 
     test('filterArtists filters by artist name, song name and song text', () {
       final artists = [
-        const Artist(name: 'Океан Ельзи', songs: [
+        Artist(name: 'Океан Ельзи', songs: [
           Song(name: 'Без бою', text: 'Я не здамся без бою...'),
           Song(name: "В'юн над водою", text: 'В’юн над водою стелиться...'),
         ]),
-        const Artist(name: 'Бумбокс', songs: [
+        Artist(name: 'Бумбокс', songs: [
           Song(name: 'Вахтерам', text: 'Тебе так любив я...'),
         ]),
-        const Artist(name: 'Антитіла', songs: [
+        Artist(name: 'Антитіла', songs: [
           Song(name: 'TDME', text: 'Там де ми є...'),
         ]),
       ];
@@ -131,7 +131,7 @@ E7          Am
     });
 
     test('filterSongs filters songs by name and text with apostrophe and latin i support', () {
-      const songs = [
+      final songs = [
         Song(name: "В'юн над водою", text: 'Стелиться туман...'),
         Song(name: 'Без бою', text: 'Я не здамся без бою...'),
       ];
@@ -140,6 +140,28 @@ E7          Am
       expect(filterSongs(songs, 'бою').map((s) => s.name), ['Без бою']);
       expect(filterSongs(songs, 'туман').map((s) => s.name), ["В'юн над водою"]); // пошук за текстом
       expect(filterSongs(songs, '').length, 2);
+    });
+
+    test('filterSongs uses precomputed fields without re-normalizing song texts', () {
+      final songs = [
+        Song(
+          name: "В'юн над водою",
+          text: 'Стелиться туман...',
+          normalizedName: normalizeSearchText("В'юн над водою"),
+          normalizedText: normalizeSearchText('Стелиться туман...'),
+        ),
+        Song(
+          name: 'Без бою',
+          text: 'Я не здамся без бою...',
+          normalizedName: normalizeSearchText('Без бою'),
+          normalizedText: normalizeSearchText('Я не здамся без бою...'),
+        ),
+      ];
+
+      resetNormalizeSearchTextCalls();
+      final filtered = filterSongs(songs, 'бою');
+      expect(filtered.map((s) => s.name), ['Без бою']);
+      expect(normalizeSearchTextCalls, equals(1));
     });
   });
 
@@ -252,6 +274,78 @@ E7          Am
       expect(formatSongsCount(25), '25 пісень');
       expect(formatSongsCount(100), '100 пісень');
       expect(formatSongsCount(111), '111 пісень');
+    });
+  });
+
+  group('Synthetic benchmark & index verification', () {
+    test(
+        'Synthetic dataset of 3000 songs x 15 KB text searches quickly without re-normalizing song texts',
+        () async {
+      // 15 KB chunk of Ukrainian lyrics (~15,580 characters)
+      final chunk =
+          'Ой у лузі червона калина похилилася, чогось наша славна Україна зажурилася. ' *
+              200;
+      expect(chunk.length, greaterThanOrEqualTo(15000));
+
+      // Construct synthetic dataset: 100 artists x 30 songs = 3000 songs
+      final List<Artist> syntheticArtists = [];
+      for (int a = 0; a < 100; a++) {
+        final List<Song> songs = [];
+        for (int s = 0; s < 30; s++) {
+          final songName = 'Пісня $a-$s';
+          final text = (a == 42 && s == 15)
+              ? '$chunk УнікальнийТекстДляПошуку'
+              : chunk;
+          songs.add(Song(
+            name: songName,
+            text: text,
+            normalizedName: normalizeSearchText(songName),
+            normalizedText: normalizeSearchText(text),
+          ));
+        }
+        final artistName = 'Виконавець $a';
+        syntheticArtists.add(Artist(
+          name: artistName,
+          songs: List.unmodifiable(songs),
+          normalizedName: normalizeSearchText(artistName),
+        ));
+      }
+
+      expect(syntheticArtists.length, 100);
+      expect(
+          syntheticArtists.fold<int>(0, (sum, a) => sum + a.songs.length), 3000);
+
+      // Reset call counter before searching
+      resetNormalizeSearchTextCalls();
+
+      // Search for nonexistent query (worst case: scan across all 3000 songs and texts)
+      final stopwatch = Stopwatch()..start();
+      final noResults = filterArtists(syntheticArtists, 'qwxzy');
+      stopwatch.stop();
+
+      expect(noResults, isEmpty);
+      // Reasonable time: on 3000 precomputed items, String.contains takes ~10-40 ms, well below 500 ms
+      expect(stopwatch.elapsedMilliseconds, lessThan(500));
+      // Verifies that normalizeSearchText was called ONLY once for query 'qwxzy',
+      // and NOT repeated for any of the 3000 songs' texts!
+      expect(normalizeSearchTextCalls, equals(1));
+
+      // Search for a matching query in song text
+      resetNormalizeSearchTextCalls();
+      final matchStopwatch = Stopwatch()..start();
+      final matchResults =
+          filterArtists(syntheticArtists, 'УнікальнийТекстДляПошуку');
+      matchStopwatch.stop();
+
+      expect(matchResults.length, 1);
+      expect(matchResults.first.name, 'Виконавець 42');
+      expect(matchStopwatch.elapsedMilliseconds, lessThan(500));
+      expect(normalizeSearchTextCalls, equals(1));
+
+      // Test async background search (searchArtists)
+      resetNormalizeSearchTextCalls();
+      final asyncResults = await searchArtists(syntheticArtists, 'qwxzy');
+      expect(asyncResults, isEmpty);
     });
   });
 }

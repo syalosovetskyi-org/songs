@@ -24,10 +24,22 @@ import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 class Song {
   final String name;
   final String text;
+  final String normalizedName;
+  final String normalizedText;
 
-  const Song({
+  Song({
     required this.name,
     required this.text,
+    String? normalizedName,
+    String? normalizedText,
+  })  : normalizedName = normalizedName ?? normalizeSearchText(name),
+        normalizedText = normalizedText ?? normalizeSearchText(text);
+
+  const Song.raw({
+    required this.name,
+    required this.text,
+    required this.normalizedName,
+    required this.normalizedText,
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
@@ -36,15 +48,23 @@ class Song {
     if (rawName == null || rawText == null) {
       throw const FormatException('Song JSON must contain "name" and "text"');
     }
+    final nameStr = rawName.toString();
+    final textStr = rawText.toString();
+    final dynamic rawNormName = json['normalizedName'];
+    final dynamic rawNormText = json['normalizedText'];
     return Song(
-      name: rawName.toString(),
-      text: rawText.toString(),
+      name: nameStr,
+      text: textStr,
+      normalizedName: rawNormName is String ? rawNormName : null,
+      normalizedText: rawNormText is String ? rawNormText : null,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'text': text,
+        'normalizedName': normalizedName,
+        'normalizedText': normalizedText,
       };
 
   @override
@@ -67,10 +87,18 @@ class Song {
 class Artist {
   final String name;
   final List<Song> songs;
+  final String normalizedName;
 
-  const Artist({
+  Artist({
     required this.name,
     required this.songs,
+    String? normalizedName,
+  })  : normalizedName = normalizedName ?? normalizeSearchText(name);
+
+  const Artist.raw({
+    required this.name,
+    required this.songs,
+    required this.normalizedName,
   });
 
   factory Artist.fromJson(Map<String, dynamic> json) {
@@ -89,15 +117,19 @@ class Artist {
         }
       }
     }
+    final nameStr = rawName.toString();
+    final dynamic rawNormName = json['normalizedName'];
     return Artist(
-      name: rawName.toString(),
+      name: nameStr,
       songs: List.unmodifiable(songsList),
+      normalizedName: rawNormName is String ? rawNormName : null,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'songs': songs.map((s) => s.toJson()).toList(),
+        'normalizedName': normalizedName,
       };
 
   @override
@@ -236,8 +268,19 @@ int compareUkrainian(String a, String b) {
   return normA.compareTo(normB);
 }
 
+/// Лічильник викликів normalizeSearchText (для тестування та бенчмарків).
+@visibleForTesting
+int normalizeSearchTextCalls = 0;
+
+/// Скидання лічильника викликів normalizeSearchText.
+@visibleForTesting
+void resetNormalizeSearchTextCalls() {
+  normalizeSearchTextCalls = 0;
+}
+
 /// Нормалізація рядка для нечутливого до апострофів, латинської 'i' та регістру пошуку.
 String normalizeSearchText(String text) {
+  normalizeSearchTextCalls++;
   if (text.isEmpty) return '';
   return text
       .toLowerCase()
@@ -261,12 +304,12 @@ List<Artist> filterArtists(List<Artist> artists, String query) {
   if (normalizedQuery.isEmpty) return artists;
 
   return artists.where((artist) {
-    if (matchesSearch(artist.name, normalizedQuery)) {
+    if (artist.normalizedName.contains(normalizedQuery)) {
       return true;
     }
     return artist.songs.any((song) =>
-        matchesSearch(song.name, normalizedQuery) ||
-        matchesSearch(song.text, normalizedQuery));
+        song.normalizedName.contains(normalizedQuery) ||
+        song.normalizedText.contains(normalizedQuery));
   }).toList();
 }
 
@@ -276,8 +319,22 @@ List<Song> filterSongs(List<Song> songs, String query) {
   if (normalizedQuery.isEmpty) return songs;
 
   return songs.where((song) =>
-      matchesSearch(song.name, normalizedQuery) ||
-      matchesSearch(song.text, normalizedQuery)).toList();
+      song.normalizedName.contains(normalizedQuery) ||
+      song.normalizedText.contains(normalizedQuery)).toList();
+}
+
+/// Пошук виконавців за попередньо обчисленим індексом (асинхронно, щоб UI встиг показати індикатор).
+Future<List<Artist>> searchArtists(List<Artist> artists, String query) {
+  final trimmed = query.trim();
+  if (trimmed.isEmpty) {
+    return Future.value(artists);
+  }
+  // Не compute(): копіювання всього каталогу (десятки МБ текстів + індекс) в ізолят
+  // на кожен запит дорожче за сам пошук. За попередньо обчисленим індексом пошук — це
+  // простий contains, на 45 МБ текстів — десятки мілісекунд; debounce в UI не дає
+  // запускати його на кожну літеру.
+  return Future<void>.delayed(Duration.zero)
+      .then((_) => filterArtists(artists, query));
 }
 
 /// Парсинг структури даних пісенника з валідацією, сортуванням та відсіюванням битих записів.
@@ -298,25 +355,39 @@ List<Artist> parseSongbookData(
   final Map<dynamic, dynamic> artistsMap = artistsRaw;
   final Map<dynamic, dynamic> songsMap = songsRaw;
 
+  final Map<String, Song> songUrlCache = {};
   final List<Artist> artists = [];
 
   artistsMap.forEach((dynamic artistKey, dynamic songUrls) {
     final String artistName = artistKey?.toString() ?? '';
-    if (artistName.trim().isEmpty) return;
+    final trimmedArtistName = artistName.trim();
+    if (trimmedArtistName.isEmpty) return;
 
     final List<Song> artistSongs = [];
     if (songUrls is Iterable) {
       for (final dynamic url in songUrls) {
         if (url == null) continue;
-        final dynamic songEntry = songsMap[url.toString()];
+        final urlStr = url.toString();
+        final cached = songUrlCache[urlStr];
+        if (cached != null) {
+          artistSongs.add(cached);
+          continue;
+        }
+
+        final dynamic songEntry = songsMap[urlStr];
         if (songEntry is Map) {
           final dynamic rawName = songEntry['name'];
           final dynamic rawText = songEntry['text'];
           if (rawName is String && rawText is String && rawName.trim().isNotEmpty) {
-            artistSongs.add(Song(
-              name: rawName.trim(),
+            final trimmedSongName = rawName.trim();
+            final song = Song(
+              name: trimmedSongName,
               text: rawText,
-            ));
+              normalizedName: normalizeSearchText(trimmedSongName),
+              normalizedText: normalizeSearchText(rawText),
+            );
+            songUrlCache[urlStr] = song;
+            artistSongs.add(song);
           }
         }
       }
@@ -325,8 +396,9 @@ List<Artist> parseSongbookData(
     if (artistSongs.isNotEmpty || includeEmptyArtists) {
       artistSongs.sort((a, b) => compareUkrainian(a.name, b.name));
       artists.add(Artist(
-        name: artistName.trim(),
+        name: trimmedArtistName,
         songs: List.unmodifiable(artistSongs),
+        normalizedName: normalizeSearchText(trimmedArtistName),
       ));
     }
   });
