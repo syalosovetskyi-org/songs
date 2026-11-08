@@ -24,22 +24,10 @@ import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 class Song {
   final String name;
   final String text;
-  final String normalizedName;
-  final String normalizedText;
 
-  Song({
+  const Song({
     required this.name,
     required this.text,
-    String? normalizedName,
-    String? normalizedText,
-  })  : normalizedName = normalizedName ?? normalizeSearchText(name),
-        normalizedText = normalizedText ?? normalizeSearchText(text);
-
-  const Song.raw({
-    required this.name,
-    required this.text,
-    required this.normalizedName,
-    required this.normalizedText,
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
@@ -50,21 +38,12 @@ class Song {
     }
     final nameStr = rawName.toString();
     final textStr = rawText.toString();
-    final dynamic rawNormName = json['normalizedName'];
-    final dynamic rawNormText = json['normalizedText'];
-    return Song(
-      name: nameStr,
-      text: textStr,
-      normalizedName: rawNormName is String ? rawNormName : null,
-      normalizedText: rawNormText is String ? rawNormText : null,
-    );
+    return Song(name: nameStr, text: textStr);
   }
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'text': text,
-        'normalizedName': normalizedName,
-        'normalizedText': normalizedText,
       };
 
   @override
@@ -87,18 +66,10 @@ class Song {
 class Artist {
   final String name;
   final List<Song> songs;
-  final String normalizedName;
 
-  Artist({
+  const Artist({
     required this.name,
     required this.songs,
-    String? normalizedName,
-  })  : normalizedName = normalizedName ?? normalizeSearchText(name);
-
-  const Artist.raw({
-    required this.name,
-    required this.songs,
-    required this.normalizedName,
   });
 
   factory Artist.fromJson(Map<String, dynamic> json) {
@@ -118,18 +89,12 @@ class Artist {
       }
     }
     final nameStr = rawName.toString();
-    final dynamic rawNormName = json['normalizedName'];
-    return Artist(
-      name: nameStr,
-      songs: List.unmodifiable(songsList),
-      normalizedName: rawNormName is String ? rawNormName : null,
-    );
+    return Artist(name: nameStr, songs: List.unmodifiable(songsList));
   }
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'songs': songs.map((s) => s.toJson()).toList(),
-        'normalizedName': normalizedName,
       };
 
   @override
@@ -290,49 +255,69 @@ String normalizeSearchText(String text) {
       .trim();
 }
 
+/// Шаблон пошуку, що збігається з тими самими рядками, що й порівняння
+/// нормалізованих текстів (регістр, латинська 'i' ≡ 'і', будь-який апостроф,
+/// послідовність пробілів), але без зберігання нормалізованих копій текстів у
+/// пам'яті: регулярний вираз будується один раз на запит і йде по оригіналах.
+/// Повертає null для порожнього запиту.
+RegExp? buildSearchPattern(String query) {
+  final normalizedQuery = normalizeSearchText(query);
+  if (normalizedQuery.isEmpty) return null;
+  final buffer = StringBuffer();
+  for (final rune in normalizedQuery.runes) {
+    final char = String.fromCharCode(rune);
+    if (char == 'і') {
+      buffer.write('[iі]');
+    } else if (char == "'") {
+      buffer.write("[’ʼʻ`´']");
+    } else if (char == ' ') {
+      buffer.write(r'\s+');
+    } else {
+      buffer.write(RegExp.escape(char));
+    }
+  }
+  return RegExp(buffer.toString(), caseSensitive: false, unicode: true);
+}
+
 /// Перевірка входження підрядка пошуку в текст з нормалізацією.
 bool matchesSearch(String target, String query) {
-  final normalizedQuery = normalizeSearchText(query);
-  if (normalizedQuery.isEmpty) return true;
-  final normalizedTarget = normalizeSearchText(target);
-  return normalizedTarget.contains(normalizedQuery);
+  final pattern = buildSearchPattern(query);
+  if (pattern == null) return true;
+  return pattern.hasMatch(target);
 }
+
+bool _songMatches(Song song, RegExp pattern) =>
+    pattern.hasMatch(song.name) || pattern.hasMatch(song.text);
 
 /// Фільтрація виконавців за пошуковим запитом (за назвою артиста, назвами його пісень або рядками тексту пісень).
 List<Artist> filterArtists(List<Artist> artists, String query) {
-  final normalizedQuery = normalizeSearchText(query);
-  if (normalizedQuery.isEmpty) return artists;
+  final pattern = buildSearchPattern(query);
+  if (pattern == null) return artists;
 
-  return artists.where((artist) {
-    if (artist.normalizedName.contains(normalizedQuery)) {
-      return true;
-    }
-    return artist.songs.any((song) =>
-        song.normalizedName.contains(normalizedQuery) ||
-        song.normalizedText.contains(normalizedQuery));
-  }).toList();
+  return artists
+      .where((artist) =>
+          pattern.hasMatch(artist.name) ||
+          artist.songs.any((song) => _songMatches(song, pattern)))
+      .toList();
 }
 
 /// Фільтрація пісень виконавця за пошуковим запитом (за назвою пісні або текстом).
 List<Song> filterSongs(List<Song> songs, String query) {
-  final normalizedQuery = normalizeSearchText(query);
-  if (normalizedQuery.isEmpty) return songs;
+  final pattern = buildSearchPattern(query);
+  if (pattern == null) return songs;
 
-  return songs.where((song) =>
-      song.normalizedName.contains(normalizedQuery) ||
-      song.normalizedText.contains(normalizedQuery)).toList();
+  return songs.where((song) => _songMatches(song, pattern)).toList();
 }
 
-/// Пошук виконавців за попередньо обчисленим індексом (асинхронно, щоб UI встиг показати індикатор).
+/// Пошук виконавців (асинхронно, щоб UI встиг показати індикатор).
 Future<List<Artist>> searchArtists(List<Artist> artists, String query) {
   final trimmed = query.trim();
   if (trimmed.isEmpty) {
     return Future.value(artists);
   }
-  // Не compute(): копіювання всього каталогу (десятки МБ текстів + індекс) в ізолят
-  // на кожен запит дорожче за сам пошук. За попередньо обчисленим індексом пошук — це
-  // простий contains, на 45 МБ текстів — десятки мілісекунд; debounce в UI не дає
-  // запускати його на кожну літеру.
+  // Не compute(): копіювання всього каталогу (десятки МБ текстів) в ізолят на кожен
+  // запит дорожче за сам пошук. Один регулярний вираз по оригіналах — десятки
+  // мілісекунд у релізній збірці; debounce в UI не дає запускати його на кожну літеру.
   return Future<void>.delayed(Duration.zero)
       .then((_) => filterArtists(artists, query));
 }
@@ -383,8 +368,6 @@ List<Artist> parseSongbookData(
             final song = Song(
               name: trimmedSongName,
               text: rawText,
-              normalizedName: normalizeSearchText(trimmedSongName),
-              normalizedText: normalizeSearchText(rawText),
             );
             songUrlCache[urlStr] = song;
             artistSongs.add(song);
@@ -398,7 +381,6 @@ List<Artist> parseSongbookData(
       artists.add(Artist(
         name: trimmedArtistName,
         songs: List.unmodifiable(artistSongs),
-        normalizedName: normalizeSearchText(trimmedArtistName),
       ));
     }
   });

@@ -4,14 +4,14 @@ import 'package:song_lyrics/main.dart';
 
 void main() {
   final testArtists = [
-    Artist(
+    const Artist(
       name: 'Океан Ельзи',
       songs: [
         Song(name: 'Без бою', text: 'Я не здамся без бою...'),
         Song(name: "В'юн над водою", text: 'В’юн над водою стелиться...'),
       ],
     ),
-    Artist(
+    const Artist(
       name: 'Бумбокс',
       songs: [
         Song(name: 'Вахтерам', text: 'Тебе так любив я...'),
@@ -175,13 +175,13 @@ void main() {
   });
 
   testWidgets('SongPage displays SelectableText and empty state when text is blank', (WidgetTester tester) async {
-    final emptySong = Song(name: 'Порожня пісня', text: '');
+    const emptySong = Song(name: 'Порожня пісня', text: '');
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData.dark().copyWith(
           splashFactory: InkRipple.splashFactory,
         ),
-        home: SongPage(song: emptySong),
+        home: const SongPage(song: emptySong),
       ),
     );
     await tester.pumpAndSettle();
@@ -191,7 +191,7 @@ void main() {
   });
 
   testWidgets('SongPage displays SelectableText for regular song lyrics', (WidgetTester tester) async {
-    final song = Song(
+    const song = Song(
       name: 'Без бою',
       text: 'Я не здамся без бою...',
     );
@@ -200,7 +200,7 @@ void main() {
         theme: ThemeData.dark().copyWith(
           splashFactory: InkRipple.splashFactory,
         ),
-        home: SongPage(song: song),
+        home: const SongPage(song: song),
       ),
     );
     await tester.pumpAndSettle();
@@ -211,7 +211,7 @@ void main() {
   });
 
   testWidgets('SongPage displays monospace font for song with chords', (WidgetTester tester) async {
-    final chordSong = Song(
+    const chordSong = Song(
       name: 'Пісня з акордами',
       text: 'Am  C  Dm  E7\nСлова пісні',
     );
@@ -220,7 +220,7 @@ void main() {
         theme: ThemeData.dark().copyWith(
           splashFactory: InkRipple.splashFactory,
         ),
-        home: SongPage(song: chordSong),
+        home: const SongPage(song: chordSong),
       ),
     );
     await tester.pumpAndSettle();

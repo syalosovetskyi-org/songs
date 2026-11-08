@@ -99,14 +99,14 @@ E7          Am
 
     test('filterArtists filters by artist name, song name and song text', () {
       final artists = [
-        Artist(name: 'Океан Ельзи', songs: [
+        const Artist(name: 'Океан Ельзи', songs: [
           Song(name: 'Без бою', text: 'Я не здамся без бою...'),
           Song(name: "В'юн над водою", text: 'В’юн над водою стелиться...'),
         ]),
-        Artist(name: 'Бумбокс', songs: [
+        const Artist(name: 'Бумбокс', songs: [
           Song(name: 'Вахтерам', text: 'Тебе так любив я...'),
         ]),
-        Artist(name: 'Антитіла', songs: [
+        const Artist(name: 'Антитіла', songs: [
           Song(name: 'TDME', text: 'Там де ми є...'),
         ]),
       ];
@@ -132,8 +132,8 @@ E7          Am
 
     test('filterSongs filters songs by name and text with apostrophe and latin i support', () {
       final songs = [
-        Song(name: "В'юн над водою", text: 'Стелиться туман...'),
-        Song(name: 'Без бою', text: 'Я не здамся без бою...'),
+        const Song(name: "В'юн над водою", text: 'Стелиться туман...'),
+        const Song(name: 'Без бою', text: 'Я не здамся без бою...'),
       ];
 
       expect(filterSongs(songs, 'в’юн').map((s) => s.name), ["В'юн над водою"]);
@@ -142,19 +142,15 @@ E7          Am
       expect(filterSongs(songs, '').length, 2);
     });
 
-    test('filterSongs uses precomputed fields without re-normalizing song texts', () {
+    test('filterSongs normalizes only the query, not song texts', () {
       final songs = [
-        Song(
+        const Song(
           name: "В'юн над водою",
           text: 'Стелиться туман...',
-          normalizedName: normalizeSearchText("В'юн над водою"),
-          normalizedText: normalizeSearchText('Стелиться туман...'),
         ),
-        Song(
+        const Song(
           name: 'Без бою',
           text: 'Я не здамся без бою...',
-          normalizedName: normalizeSearchText('Без бою'),
-          normalizedText: normalizeSearchText('Я не здамся без бою...'),
         ),
       ];
 
@@ -162,6 +158,34 @@ E7          Am
       final filtered = filterSongs(songs, 'бою');
       expect(filtered.map((s) => s.name), ['Без бою']);
       expect(normalizeSearchTextCalls, equals(1));
+    });
+  });
+
+  group('Search pattern matches the same strings as normalized comparison', () {
+    test('case, latin i, apostrophes and whitespace in the TARGET text', () {
+      expect(matchesSearch('ІВО БОБУЛ', 'іво'), isTrue); // великі кириличні
+      expect(matchesSearch('Ivo Bobul', 'іvо'), isFalse); // 'о' латинська ≠ кирилична
+      expect(matchesSearch('IVAN', 'іван'), isFalse); // а/н кириличні ≠ латинські
+      expect(matchesSearch('Iван', 'іван'), isTrue); // латинська велика I у тексті
+      expect(matchesSearch('В’юн над водою', "в'юн"), isTrue);
+      expect(matchesSearch('Вʼюн над водою', 'в`юн'), isTrue);
+      expect(matchesSearch('над\n\n  водою', 'над водою'), isTrue); // переноси й пробіли
+      expect(matchesSearch('над водою', 'надводою'), isFalse);
+    });
+
+    test('regex special characters in the query are literal', () {
+      expect(matchesSearch('Пісня (live)', '(live)'), isTrue);
+      expect(matchesSearch('Пісня live', '(live)'), isFalse);
+      expect(matchesSearch('Хто ти?', 'ти?'), isTrue);
+      expect(matchesSearch('Хто т', 'ти?'), isFalse);
+      expect(matchesSearch('a.b', 'a.b'), isTrue);
+      expect(matchesSearch('axb', 'a.b'), isFalse);
+      expect(matchesSearch(r'C:\dir [1]*', r'\dir [1]*'), isTrue);
+    });
+
+    test('empty or blank query matches everything', () {
+      expect(buildSearchPattern('   '), isNull);
+      expect(matchesSearch('будь-що', ''), isTrue);
     });
   });
 
@@ -279,7 +303,7 @@ E7          Am
 
   group('Synthetic benchmark & index verification', () {
     test(
-        'Synthetic dataset of 3000 songs x 15 KB text searches quickly without re-normalizing song texts',
+        'Synthetic dataset of 3000 songs x 15 KB text searches quickly without normalizing song texts',
         () async {
       // 15 KB chunk of Ukrainian lyrics (~15,580 characters)
       final chunk =
@@ -299,15 +323,12 @@ E7          Am
           songs.add(Song(
             name: songName,
             text: text,
-            normalizedName: normalizeSearchText(songName),
-            normalizedText: normalizeSearchText(text),
           ));
         }
         final artistName = 'Виконавець $a';
         syntheticArtists.add(Artist(
           name: artistName,
           songs: List.unmodifiable(songs),
-          normalizedName: normalizeSearchText(artistName),
         ));
       }
 
@@ -324,7 +345,7 @@ E7          Am
       stopwatch.stop();
 
       expect(noResults, isEmpty);
-      // Reasonable time: on 3000 precomputed items, String.contains takes ~10-40 ms, well below 500 ms
+      // Reasonable time: one RegExp over 3000 original texts, well below 500 ms
       expect(stopwatch.elapsedMilliseconds, lessThan(500));
       // Verifies that normalizeSearchText was called ONLY once for query 'qwxzy',
       // and NOT repeated for any of the 3000 songs' texts!
