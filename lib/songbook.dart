@@ -16,6 +16,7 @@
  */
 
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
@@ -141,6 +142,419 @@ bool isChordLine(String line) {
 bool hasChords(String text) {
   if (text.isEmpty) return false;
   return text.split('\n').any(isChordLine);
+}
+
+/// Регулярний вираз для перевірки префіксу табулатури (назва струни та роздільник |).
+final RegExp _tabPrefixRegex = RegExp(r'^[A-Ha-h][#b]?\|');
+
+/// Перевіряє, чи є рядок табулатурою.
+bool isTabLine(String line) {
+  final trimmed = line.trimLeft();
+  if (trimmed.isEmpty) return false;
+  return _tabPrefixRegex.hasMatch(trimmed) ||
+      (line.contains('---') && line.contains('|'));
+}
+
+/// Модель рядка для відображення у пісеннику з акордами або табулатурою.
+class ChordDisplayLine {
+  final String text;
+  final bool isChord;
+  final bool isTab;
+
+  const ChordDisplayLine(
+    this.text, {
+    this.isChord = false,
+    this.isTab = false,
+  });
+
+  const ChordDisplayLine.named({
+    required this.text,
+    this.isChord = false,
+    this.isTab = false,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChordDisplayLine &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          isChord == other.isChord &&
+          isTab == other.isTab;
+
+  @override
+  int get hashCode => Object.hash(text, isChord, isTab);
+
+  @override
+  String toString() =>
+      'ChordDisplayLine(text: $text, isChord: $isChord, isTab: $isTab)';
+}
+
+class _TokenSpan {
+  final int start;
+  final int end;
+
+  const _TokenSpan(this.start, this.end);
+}
+
+List<_TokenSpan> _findChordTokens(String line) {
+  final tokens = <_TokenSpan>[];
+  int i = 0;
+  while (i < line.length) {
+    if (line[i] != ' ') {
+      final start = i;
+      while (i < line.length && line[i] != ' ') {
+        i++;
+      }
+      tokens.add(_TokenSpan(start, i));
+    } else {
+      i++;
+    }
+  }
+  return tokens;
+}
+
+_TokenSpan? _getTokenCutting(int pos, List<_TokenSpan> tokens) {
+  for (final tok in tokens) {
+    if (tok.start < pos && pos < tok.end) {
+      return tok;
+    }
+  }
+  return null;
+}
+
+String _expandTabs(String line) {
+  if (!line.contains('\t')) return line;
+  final buffer = StringBuffer();
+  int col = 0;
+  for (int i = 0; i < line.length; i++) {
+    final char = line[i];
+    if (char == '\t') {
+      final spaces = 4 - (col % 4);
+      buffer.write(' ' * spaces);
+      col += spaces;
+    } else {
+      buffer.write(char);
+      col++;
+    }
+  }
+  return buffer.toString();
+}
+
+int _countLeadingSpaces(String s) {
+  int count = 0;
+  while (count < s.length && s[count] == ' ') {
+    count++;
+  }
+  return count;
+}
+
+int _choosePairSplit({
+  required String lyric,
+  required String chords,
+  required int s,
+  required int maxCols,
+  required int length,
+  required List<_TokenSpan> chordTokens,
+}) {
+  final limit = s + maxCols;
+  if (limit >= length) {
+    return length;
+  }
+
+  // 1. Шукаємо пробіл у рядку тексту в діапазоні (s, limit]
+  int? breakPt;
+  for (int p = limit; p > s; p--) {
+    if (lyric[p] == ' ') {
+      breakPt = p;
+      break;
+    }
+  }
+
+  // 2. Якщо знайдено, перевіряємо, чи не розрізає він токен акорду
+  if (breakPt != null) {
+    while (true) {
+      final tok = _getTokenCutting(breakPt!, chordTokens);
+      if (tok == null) break;
+
+      final sTok = tok.start;
+      int? shifted;
+      for (int p = sTok - 1; p > s; p--) {
+        if (lyric[p] == ' ') {
+          shifted = p;
+          break;
+        }
+      }
+
+      if (shifted != null && shifted > s) {
+        breakPt = shifted;
+      } else if (sTok > s) {
+        breakPt = sTok;
+        break;
+      } else {
+        breakPt = limit;
+        break;
+      }
+    }
+  } else {
+    // Немає пробілу в тексті: якщо є акорд, розриваємо прямо перед ним
+    int? cand;
+    for (final tok in chordTokens) {
+      if (tok.start > s && tok.start <= limit) {
+        cand = tok.start;
+        break;
+      }
+    }
+    if (cand != null) {
+      breakPt = cand;
+    } else {
+      breakPt = limit;
+    }
+  }
+
+  if (breakPt <= s) {
+    breakPt = limit;
+  }
+  return breakPt;
+}
+
+void _layoutPair({
+  required String chordLine,
+  required String lyricLine,
+  required int maxCols,
+  required List<ChordDisplayLine> result,
+}) {
+  final len = math.max(chordLine.length, lyricLine.length);
+  if (len <= maxCols) {
+    result.add(ChordDisplayLine(chordLine, isChord: true));
+    result.add(ChordDisplayLine(lyricLine, isChord: false));
+    return;
+  }
+
+  final paddedChords = chordLine.padRight(len);
+  final paddedLyric = lyricLine.padRight(len);
+  final chordTokens = _findChordTokens(paddedChords);
+
+  int s = 0;
+  bool isContinuation = false;
+
+  while (s < len) {
+    final e = _choosePairSplit(
+      lyric: paddedLyric,
+      chords: paddedChords,
+      s: s,
+      maxCols: maxCols,
+      length: len,
+      chordTokens: chordTokens,
+    );
+
+    String chordPart = paddedChords.substring(s, e).trimRight();
+    String lyricPart = paddedLyric.substring(s, e).trimRight();
+
+    if (isContinuation) {
+      final chordLead =
+          chordPart.isNotEmpty ? _countLeadingSpaces(chordPart) : null;
+      final lyricLead =
+          lyricPart.isNotEmpty ? _countLeadingSpaces(lyricPart) : null;
+
+      int stripCount = 0;
+      if (chordLead != null && lyricLead != null) {
+        stripCount = math.min(chordLead, lyricLead);
+      } else if (chordLead != null) {
+        stripCount = chordLead;
+      } else if (lyricLead != null) {
+        stripCount = lyricLead;
+      }
+
+      if (stripCount > 0) {
+        if (chordPart.isNotEmpty) {
+          chordPart = chordPart.substring(stripCount);
+        }
+        if (lyricPart.isNotEmpty) {
+          lyricPart = lyricPart.substring(stripCount);
+        }
+      }
+    }
+
+    if (chordPart.isNotEmpty) {
+      result.add(ChordDisplayLine(chordPart, isChord: true));
+    }
+    result.add(ChordDisplayLine(lyricPart, isChord: false));
+
+    isContinuation = true;
+    s = e;
+  }
+}
+
+void _layoutSingleChordLine({
+  required String line,
+  required int maxCols,
+  required List<ChordDisplayLine> result,
+}) {
+  if (line.length <= maxCols) {
+    result.add(ChordDisplayLine(line, isChord: true));
+    return;
+  }
+
+  final tokens = _findChordTokens(line);
+  if (tokens.isEmpty) {
+    result.add(ChordDisplayLine(line, isChord: true));
+    return;
+  }
+
+  int s = 0;
+  while (s < line.length) {
+    final remaining = line.substring(s).trimRight();
+    if (remaining.length <= maxCols) {
+      if (remaining.isNotEmpty) {
+        result.add(ChordDisplayLine(remaining, isChord: true));
+      }
+      break;
+    }
+
+    final limit = s + maxCols;
+    int? breakPt;
+    for (int p = limit; p > s; p--) {
+      final tok = _getTokenCutting(p, tokens);
+      if (tok == null) {
+        breakPt = p;
+        break;
+      }
+    }
+
+    breakPt ??= limit;
+
+    final chunk = line.substring(s, breakPt).trimRight();
+    if (chunk.isNotEmpty) {
+      result.add(ChordDisplayLine(chunk, isChord: true));
+    }
+
+    int nextS = breakPt;
+    while (nextS < line.length && line[nextS] == ' ') {
+      nextS++;
+    }
+    if (nextS <= s) {
+      nextS = breakPt;
+    }
+    s = nextS;
+  }
+}
+
+void _layoutSingleLyricLine({
+  required String line,
+  required int maxCols,
+  required List<ChordDisplayLine> result,
+}) {
+  if (line.length <= maxCols) {
+    result.add(ChordDisplayLine(line, isChord: false));
+    return;
+  }
+
+  final words = line.trim().split(RegExp(r'\s+'));
+  if (words.isEmpty || (words.length == 1 && words[0].isEmpty)) {
+    result.add(ChordDisplayLine(line, isChord: false));
+    return;
+  }
+
+  String currentLine = '';
+  bool isFirst = true;
+  int wIdx = 0;
+
+  while (wIdx < words.length) {
+    final word = words[wIdx];
+    final limit = isFirst ? maxCols : (maxCols > 2 ? maxCols - 2 : maxCols);
+    final prefix = isFirst ? '' : '  ';
+
+    if (currentLine.isEmpty) {
+      if (word.length <= limit) {
+        currentLine = word;
+        wIdx++;
+      } else {
+        final part = word.substring(0, limit);
+        words[wIdx] = word.substring(limit);
+        result.add(ChordDisplayLine('$prefix$part', isChord: false));
+        isFirst = false;
+        currentLine = '';
+      }
+    } else {
+      if (currentLine.length + 1 + word.length <= limit) {
+        currentLine = '$currentLine $word';
+        wIdx++;
+      } else {
+        result.add(ChordDisplayLine('$prefix$currentLine', isChord: false));
+        isFirst = false;
+        currentLine = '';
+      }
+    }
+  }
+
+  if (currentLine.isNotEmpty) {
+    final prefix = isFirst ? '' : '  ';
+    result.add(ChordDisplayLine('$prefix$currentLine', isChord: false));
+  }
+}
+
+/// Розбиває текст пісні на рядки з урахуванням акордових пар, табулатур та максимальної ширини.
+List<ChordDisplayLine> layoutChordText(String text, int maxCols) {
+  if (text.isEmpty || maxCols <= 0) return const [];
+
+  final normalized = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+  final rawLines = normalized.split('\n');
+  final lines = rawLines.map(_expandTabs).toList();
+
+  final result = <ChordDisplayLine>[];
+  int i = 0;
+  while (i < lines.length) {
+    final line = lines[i];
+
+    if (line.isEmpty) {
+      result.add(const ChordDisplayLine(''));
+      i++;
+      continue;
+    }
+
+    if (isTabLine(line)) {
+      result.add(ChordDisplayLine(line, isTab: true));
+      i++;
+      continue;
+    }
+
+    if (isChordLine(line)) {
+      final hasNext = i + 1 < lines.length;
+      final nextLine = hasNext ? lines[i + 1] : null;
+      final isPair = nextLine != null &&
+          nextLine.trim().isNotEmpty &&
+          !isChordLine(nextLine) &&
+          !isTabLine(nextLine);
+
+      if (isPair) {
+        _layoutPair(
+          chordLine: line,
+          lyricLine: nextLine,
+          maxCols: maxCols,
+          result: result,
+        );
+        i += 2;
+      } else {
+        _layoutSingleChordLine(
+          line: line,
+          maxCols: maxCols,
+          result: result,
+        );
+        i++;
+      }
+      continue;
+    }
+
+    _layoutSingleLyricLine(
+      line: line,
+      maxCols: maxCols,
+      result: result,
+    );
+    i++;
+  }
+
+  return List.unmodifiable(result);
 }
 
 /// Повертає відмінювану форму кількості пісень українською мовою:

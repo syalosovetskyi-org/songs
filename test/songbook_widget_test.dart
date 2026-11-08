@@ -229,6 +229,43 @@ void main() {
     expect(selectableText.style?.fontFamily, 'monospace');
   });
 
+  testWidgets('SongPage with narrow width wraps chord text without horizontal overflow', (WidgetTester tester) async {
+    const song = Song(
+      name: 'Сонце вийде',
+      text: 'G     Hm              C                D               G Hm C D  G\n'
+          ' Сонце вийде за хмари, та й по покрiвлi загуркотять дощi, Є-є-є. Чому?',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark().copyWith(
+          splashFactory: InkRipple.splashFactory,
+        ),
+        home: const MediaQuery(
+          data: MediaQueryData(size: Size(300, 600)),
+          child: SizedBox(
+            width: 300,
+            height: 600,
+            child: SongPage(song: song),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final selectableFinder = find.byType(SelectableText);
+    expect(selectableFinder, findsOneWidget);
+    final selectableText = tester.widget<SelectableText>(selectableFinder);
+    expect(selectableText.style?.fontFamily, 'monospace');
+    expect(selectableText.textSpan, isNotNull);
+
+    final plainText = selectableText.textSpan!.toPlainText();
+    final lines = plainText.split('\n');
+    expect(lines.length, greaterThan(2));
+    expect(plainText, contains('Сонце вийде'));
+    expect(plainText, contains('покрiвлi'));
+  });
+
   testWidgets('Error state shows retry button and Ukrainian error text', (WidgetTester tester) async {
     int attempts = 0;
     await tester.pumpWidget(

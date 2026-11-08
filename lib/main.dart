@@ -571,43 +571,20 @@ class SongPage extends StatelessWidget {
 
   const SongPage({super.key, required this.song});
 
-  double _calculateChordFontSize(String text, double availableWidth) {
-    const defaultSize = 14.0;
-    const minSize = 11.0;
-
-    if (availableWidth <= 0) return defaultSize;
-
-    final lines = text.split('\n');
-    if (lines.isEmpty) return defaultSize;
-
-    String longestLine = '';
-    for (final line in lines) {
-      if (line.length > longestLine.length) {
-        longestLine = line;
-      }
-    }
-
-    if (longestLine.isEmpty) return defaultSize;
-
+  double _measureTextWidth(String text, double fontSize, TextScaler scaler) {
     final textPainter = TextPainter(
       text: TextSpan(
-        text: longestLine,
-        style: const TextStyle(fontFamily: 'monospace', fontSize: defaultSize),
+        text: text,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: fontSize,
+          letterSpacing: 0,
+        ),
       ),
       textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-
-    final widthAtDefault = textPainter.width;
-    if (widthAtDefault <= availableWidth) {
-      return defaultSize;
-    }
-
-    double fittedSize = defaultSize * (availableWidth / widthAtDefault);
-    if (fittedSize < minSize) {
-      fittedSize = minSize;
-    }
-    return fittedSize;
+      textScaler: scaler,
+    )..layout();
+    return textPainter.width;
   }
 
   Widget _buildSongTitle(BuildContext context) {
@@ -650,26 +627,59 @@ class SongPage extends StatelessWidget {
       content = LayoutBuilder(
         builder: (context, constraints) {
           final availableWidth = constraints.maxWidth - 32.0;
-          final fontSize = _calculateChordFontSize(song.text, availableWidth);
 
-          final lines = song.text.split('\n');
+          final scaler = MediaQuery.textScalerOf(context);
+
+          // Оцінка колонок за шириною латинських літер; кирилиця в моноширинному
+          // шрифті буває трохи ширшою, і системний масштаб шрифту теж впливає.
+          int estimateCols(double size) {
+            final charWidth =
+                _measureTextWidth('MMMMMMMMMM', size, scaler) / 10.0;
+            return charWidth > 0 ? (availableWidth / charWidth).floor() : 40;
+          }
+
+          double fontSize = 14.0;
+          int maxCols = estimateCols(fontSize);
+          if (maxCols < 28) {
+            fontSize = 12.0;
+            maxCols = estimateCols(fontSize);
+          }
+          if (maxCols < 1) maxCols = 1;
+
+          // Остаточна перевірка по готових рядках: якщо хоч один (крім табулатури)
+          // не влазить у ширину, зменшуємо кількість колонок і перерозкладаємо.
+          var displayLines = layoutChordText(song.text, maxCols);
+          bool overflows(List<ChordDisplayLine> lines) => lines.any((line) =>
+              !line.isTab &&
+              _measureTextWidth(line.text, fontSize, scaler) > availableWidth);
+          while (maxCols > 10 && overflows(displayLines)) {
+            maxCols--;
+            displayLines = layoutChordText(song.text, maxCols);
+          }
+
           final spans = <TextSpan>[];
-          for (int i = 0; i < lines.length; i++) {
-            final line = lines[i];
-            final isChord = isChordLine(line);
+          for (int i = 0; i < displayLines.length; i++) {
+            final displayLine = displayLines[i];
             spans.add(
               TextSpan(
-                text: i < lines.length - 1 ? '$line\n' : line,
+                text: i < displayLines.length - 1
+                    ? '${displayLine.text}\n'
+                    : displayLine.text,
                 style: TextStyle(
-                  color: isChord ? colorScheme.primary : colorScheme.onSurface,
+                  color: displayLine.isChord
+                      ? colorScheme.primary
+                      : colorScheme.onSurface,
                 ),
               ),
             );
           }
 
+          // letterSpacing явно 0: інакше успадковується з теми (bodyMedium у
+          // Material 3 має 0.25), рядки стають ширшими за виміряні й обрізаються.
           final textStyle = TextStyle(
             fontFamily: 'monospace',
             fontSize: fontSize,
+            letterSpacing: 0,
           );
 
           return SingleChildScrollView(

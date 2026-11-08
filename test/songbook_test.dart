@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:song_lyrics/songbook.dart';
 
@@ -369,4 +370,236 @@ E7          Am
       expect(asyncResults, isEmpty);
     });
   });
+
+  group('layoutChordText tests', () {
+    test('короткий текст не меняется', () {
+      const shortText = 'Am    C\nСлова пісні';
+      final result = layoutChordText(shortText, 30);
+      expect(result.length, 2);
+      expect(result[0].text, 'Am    C');
+      expect(result[0].isChord, isTrue);
+      expect(result[1].text, 'Слова пісні');
+      expect(result[1].isChord, isFalse);
+    });
+
+    void verifyPairAlignment(String chords, String lyrics, int maxCols) {
+      final text = '$chords\n$lyrics';
+      final origMaxLen = math.max(chords.length, lyrics.length);
+      final paddedChords = chords.padRight(origMaxLen);
+      final paddedLyrics = lyrics.padRight(origMaxLen);
+
+      // Collect original chord tokens: name, start col, and chars directly underneath
+      final origTokens = <_TestChordToken>[];
+      int idx = 0;
+      while (idx < origMaxLen) {
+        if (paddedChords[idx] != ' ') {
+          final start = idx;
+          while (idx < origMaxLen && paddedChords[idx] != ' ') {
+            idx++;
+          }
+          final name = paddedChords.substring(start, idx);
+          final under = paddedLyrics.substring(start, idx);
+          origTokens.add(_TestChordToken(name, start, under));
+        } else {
+          idx++;
+        }
+      }
+
+      final lines = layoutChordText(text, maxCols);
+
+      // Verify no non-tab line exceeds maxCols
+      for (final line in lines) {
+        if (!line.isTab) {
+          expect(line.text.length, lessThanOrEqualTo(maxCols),
+              reason: 'Line \'${line.text}\' exceeds maxCols ($maxCols)');
+        }
+      }
+
+      // Collect output chord tokens from all chord lines
+      final outputTokens = <_TestChordToken>[];
+      for (int i = 0; i < lines.length; i++) {
+        if (lines[i].isChord) {
+          expect(i + 1, lessThan(lines.length));
+          final cLine = lines[i].text;
+          final lLine = lines[i + 1].text;
+          expect(lines[i + 1].isChord, isFalse);
+
+          int cIdx = 0;
+          while (cIdx < cLine.length) {
+            if (cLine[cIdx] != ' ') {
+              final start = cIdx;
+              while (cIdx < cLine.length && cLine[cIdx] != ' ') {
+                cIdx++;
+              }
+              final name = cLine.substring(start, cIdx);
+              final endUnder = math.min(cIdx, lLine.length);
+              final under = start < lLine.length
+                  ? lLine.substring(start, endUnder).padRight(name.length)
+                  : ' ' * name.length;
+              outputTokens.add(_TestChordToken(name, start, under));
+            } else {
+              cIdx++;
+            }
+          }
+        }
+      }
+
+      expect(outputTokens.length, origTokens.length,
+          reason: 'Count of output chord tokens must match original chord tokens');
+
+      for (int k = 0; k < origTokens.length; k++) {
+        expect(outputTokens[k].name, origTokens[k].name,
+            reason: 'Chord token name mismatch at index $k');
+        expect(outputTokens[k].under, origTokens[k].under,
+            reason:
+                'Underlying lyric characters must match original for chord \'${origTokens[k].name}\' at index $k');
+      }
+    }
+
+    test(
+        'пара переносится с точным сохранением соответствия аккордов слогам при maxCols 30 и 40',
+        () {
+      const chords =
+          'G     Hm              C                D               G Hm C D  G';
+      const lyrics =
+          ' Сонце вийде за хмари, та й по покрiвлi загуркотять дощi, Є-є-є. Чому?';
+
+      verifyPairAlignment(chords, lyrics, 30);
+      verifyPairAlignment(chords, lyrics, 40);
+    });
+
+    test('ни одна не-таб строка не длиннее maxCols', () {
+      const complexSong = '''
+G     Hm              C                D               G Hm C D  G
+ Сонце вийде за хмари, та й по покрiвлi загуркотять дощi, Є-є-є. Чому?
+E||--0---2---3---5---7---8---10---|
+B|---1---3---5---7---8---10--12---|
+Am          C          Dm          E7          F          G
+Одиночний довгий рядок тексту який обов'язково має бути перенесено на кілька рядків
+''';
+      for (final maxCols in [20, 25, 30, 40]) {
+        final lines = layoutChordText(complexSong, maxCols);
+        for (final line in lines) {
+          if (!line.isTab) {
+            expect(line.text.length, lessThanOrEqualTo(maxCols),
+                reason: 'Line \'${line.text}\' is longer than maxCols ($maxCols)');
+          }
+        }
+      }
+    });
+
+    test('токен аккорда никогда не разрезан (например Hm7/F#)', () {
+      const chords = 'Am          Hm7/F#          C';
+      const lyrics = 'Один два три чотири п’ять шість';
+      for (int maxCols = 14; maxCols <= 25; maxCols++) {
+        final lines = layoutChordText('$chords\n$lyrics', maxCols);
+        for (final line in lines) {
+          if (line.isChord) {
+            if (line.text.contains('Hm7')) {
+              expect(line.text, contains('Hm7/F#'),
+                  reason: 'Hm7/F# must never be cut into parts');
+            }
+          }
+        }
+      }
+    });
+
+    test('табулатура не переносится и помечается isTab=true', () {
+      const tabText = '''
+E||--0---2---3---5---7---8---10---|
+e|---3---3---3---3---3---3---|
+|---0---2---3---0---|
+''';
+      // Літерал закінчується переводом рядка — четвертий порожній рядок не табулатура.
+      final lines = layoutChordText(tabText, 15)
+          .where((line) => line.text.isNotEmpty)
+          .toList();
+      expect(lines.length, 3);
+      for (final line in lines) {
+        expect(line.isTab, isTrue);
+        expect(line.isChord, isFalse);
+      }
+      expect(lines[0].text, 'E||--0---2---3---5---7---8---10---|');
+      expect(lines[1].text, 'e|---3---3---3---3---3---3---|');
+      expect(lines[2].text, '|---0---2---3---0---|');
+    });
+
+    test(
+        'розгортання табуляцій до кратного 4 та нормалізація переносу рядків CRLF',
+        () {
+      const textWithTabs = 'G\tHm\nСонце\tвийде';
+      final lines = layoutChordText(textWithTabs, 40);
+      expect(lines.length, 2);
+      expect(lines[0].text, 'G   Hm');
+      expect(lines[1].text, 'Сонце   вийде');
+
+      const crlfText = 'Am    C\r\nРядок один\r\n\r\nDm    E7\r\nРядок два\r\n';
+      final crlfLines = layoutChordText(crlfText, 30);
+      for (final line in crlfLines) {
+        expect(line.text.contains('\r'), isFalse);
+      }
+      expect(crlfLines.any((l) => l.text.isEmpty), isTrue);
+    });
+
+    test(
+        'одиночные длинные строки аккордов переносятся по границам токенов', () {
+      const singleChordLine =
+          'Am    C    Dm    E7    F    G    Em    Am    C    Dm    E7';
+      final lines = layoutChordText(singleChordLine, 20);
+      expect(lines.length, greaterThan(1));
+      for (final line in lines) {
+        expect(line.isChord, isTrue);
+        expect(line.text.length, lessThanOrEqualTo(20));
+      }
+      final allTokens = lines
+          .map((l) => l.text.split(RegExp(r'\s+')).where((t) => t.isNotEmpty))
+          .expand((tokens) => tokens)
+          .toList();
+      expect(allTokens, [
+        'Am',
+        'C',
+        'Dm',
+        'E7',
+        'F',
+        'G',
+        'Em',
+        'Am',
+        'C',
+        'Dm',
+        'E7'
+      ]);
+    });
+
+    test(
+        'одиночные длинные строки текста переносятся по словам с отступом 2 пробела',
+        () {
+      const longText =
+          'Це довгий рядок тексту пісні який повинен переноситися по словах з відступом два пробіли на наступних рядках';
+      final lines = layoutChordText(longText, 25);
+      expect(lines.length, greaterThan(1));
+      for (int i = 0; i < lines.length; i++) {
+        expect(lines[i].isChord, isFalse);
+        expect(lines[i].text.length, lessThanOrEqualTo(25));
+        if (i > 0) {
+          expect(lines[i].text.startsWith('  '), isTrue,
+              reason: 'Continuation lines must start with 2 spaces indent');
+        }
+      }
+
+      // Hard break on word longer than maxCols
+      const longWord = 'Превеликедовжелезнесловоякеневлізає';
+      final wordLines = layoutChordText(longWord, 10);
+      expect(wordLines.length, greaterThan(1));
+      for (final l in wordLines) {
+        expect(l.text.length, lessThanOrEqualTo(10));
+      }
+    });
+  });
+}
+
+class _TestChordToken {
+  final String name;
+  final int start;
+  final String under;
+  const _TestChordToken(this.name, this.start, this.under);
 }
