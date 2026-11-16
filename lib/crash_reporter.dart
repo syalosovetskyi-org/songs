@@ -29,6 +29,14 @@ abstract class CrashReporter {
   @visibleForTesting
   static set instance(CrashReporter? custom) => _instance = custom;
 
+  /// Перемикає застосунок на локальний репортер, коли основний не зміг
+  /// ініціалізуватися (напр. впав Firebase.initializeApp у play-сборці).
+  static PersonalCrashReporter useLocalFallback() {
+    final fallback = PersonalCrashReporter();
+    _instance = fallback;
+    return fallback;
+  }
+
   /// Фабрика для створення репортера з урахуванням переданого flavor.
   static CrashReporter create([String? flavor]) {
     final effectiveFlavor =

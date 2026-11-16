@@ -19,7 +19,6 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'crash_reporter.dart';
 import 'songbook.dart';
 
@@ -38,17 +37,38 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   const flavor = String.fromEnvironment('FLAVOR', defaultValue: 'personal');
-  if (flavor == 'play') {
-    final reporter = CrashReporter.instance;
-    await reporter.initialize();
-    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-    PlatformDispatcher.instance.onError = (error, stack) {
-      reporter.recordError(error, stack, fatal: true);
-      return true;
-    };
-  }
+  await initCrashReporting(flavor);
 
   runApp(const MyApp());
+}
+
+/// Підключає репортер помилок для play-сборки.
+///
+/// Збій ініціалізації (битий google-services.json, немає Play Services)
+/// не повинен зупиняти старт: інакше runApp не викликається, а користувач
+/// бачить вічний сплеш. Тоді перемикаємося на локальний репортер і
+/// записуємо саму помилку ініціалізації в лог.
+@visibleForTesting
+Future<void> initCrashReporting(String flavor) async {
+  if (flavor != 'play') {
+    return;
+  }
+  var reporter = CrashReporter.instance;
+  try {
+    await reporter.initialize();
+  } catch (error, stack) {
+    reporter = CrashReporter.useLocalFallback();
+    reporter.recordError(
+      error,
+      stack,
+      reason: 'Не вдалося ініціалізувати Crashlytics, працюємо без нього',
+    );
+  }
+  FlutterError.onError = reporter.recordFlutterFatalError;
+  PlatformDispatcher.instance.onError = (error, stack) {
+    reporter.recordError(error, stack, fatal: true);
+    return true;
+  };
 }
 
 class MyApp extends StatelessWidget {
@@ -140,6 +160,15 @@ class _ArtistListPageState extends State<ArtistListPage> {
           _filteredArtists = artists;
         }
         return artists;
+      }).catchError((Object error, StackTrace stack) {
+        // Повідомляємо один раз тут, а не з build(): build() виконується
+        // на кожен setState з тим самим Future і слав би ту саму помилку знову.
+        CrashReporter.instance.recordError(
+          error,
+          stack,
+          reason: 'Помилка завантаження бази пісень',
+        );
+        Error.throwWithStackTrace(error, stack);
       });
     });
   }
@@ -279,11 +308,6 @@ class _ArtistListPageState extends State<ArtistListPage> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            CrashReporter.instance.recordError(
-              snapshot.error!,
-              snapshot.stackTrace,
-              reason: 'Помилка завантаження бази пісень',
-            );
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
